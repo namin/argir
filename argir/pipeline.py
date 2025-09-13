@@ -3,6 +3,7 @@ from typing import Dict, Any, Optional
 import importlib
 from .normalize.canonicalize import canonicalize
 from .checks.rules import run_all
+from .checks.strict import strict_validate
 from .semantics.semantics import compute_extensions
 from .fol.translate import argir_to_fof
 from .fol.eprover import call_eprover
@@ -13,6 +14,10 @@ def run_pipeline(text: str, fol_mode: str = "classical", goal_id: Optional[str] 
     draft, draft_meta = parse_mod.llm_draft(text)
     canon = canonicalize(draft)
     argir = canon.argir
+
+    # Always run validation checks (as warnings)
+    validation_issues = strict_validate(argir)
+
     fof_pairs = argir_to_fof(argir, fol_mode=fol_mode, goal_id=goal_id)
     fof_lines = [fof for _, fof in fof_pairs]
     try:
@@ -21,5 +26,20 @@ def run_pipeline(text: str, fol_mode: str = "classical", goal_id: Optional[str] 
         semantics = {"error": f"{type(e).__name__}: {e}"}
     fol_summary = call_eprover(fof_lines)
     findings = run_all(argir)
-    report_md = to_markdown(argir, findings, semantics, fol_summary, fof_lines, {"warnings": canon.warnings})
-    return {"argir": argir.model_dump(),"draft": draft,"findings": findings,"semantics": semantics,"fof": fof_lines,"fol_summary": fol_summary,"report_md": report_md}
+
+    # Include validation issues in warnings if strict mode is enabled
+    all_warnings = {"warnings": canon.warnings}
+    if validation_issues:
+        all_warnings["validation_issues"] = validation_issues
+
+    report_md = to_markdown(argir, findings, semantics, fol_summary, fof_lines, all_warnings)
+    return {
+        "argir": argir.model_dump(),
+        "draft": draft,
+        "findings": findings,
+        "semantics": semantics,
+        "fof": fof_lines,
+        "fol_summary": fol_summary,
+        "report_md": report_md,
+        "validation_issues": validation_issues  # Include in result for UI to display
+    }

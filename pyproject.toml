@@ -5,8 +5,8 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "argir"
 version = "0.3.3"
-description = "Unified Argument IR (Graph + Structure + FOL) - Clean Slate 0.3.3"
-authors = [{name="ARGIR Authors"}]
+description = "Unified Argument IR (Graph + Structure + FOL)"
+authors = [{name="Nada Amin"}]
 license = {text = "MIT"}
 requires-python = ">=3.9"
-dependencies = ["pydantic>=1.10"]
+dependencies = ["google-genai", "pydantic>=1.10", "flask>=2.0.0", "gunicorn>=20.0.0"]

@@ -3,20 +3,64 @@ import json
 from typing import Tuple, Dict, Any
 from .llm import generate_json
 
-PARSE_SYSTEM = """You MUST output exactly one valid JSON object (no code fences, no prose).
-Keys: version, source_text, graph{nodes,edges}, metadata.
-Node = {id, premises[], rule?, conclusion?, span?, rationale?}
-  Premise = Statement | "nodeId"
-  Statement = {text, atoms[], quantifiers[], span?, rationale?, confidence?}
-  Rule = {name, strict, antecedents[], consequents[], exceptions[], span?, scheme?, rationale?}
-Edge = {source, target, kind: support|attack, attack_kind: rebut|undermine|undercut|unknown|null, rationale?}
-Reflect the text faithfully; do NOT invent content.
+PARSE_SYSTEM = """You are an argument parser. Output ONE JSON object that conforms to ARGIR's contract.
+If you cannot satisfy ALL constraints below, do NOT guess—re-think and fix before emitting JSON.
+Final output MUST be valid JSON only (no prose).
 
-### Canonical atoms (REQUIRED)
-- In `metadata.atom_lexicon`, provide an object whose KEYS are the canonical predicate names you will use (ASCII, snake_case), and whose VALUES are arrays of surface forms you normalized (e.g., {"raining":["it rains","is raining"],"streets_get_wet":["the streets get wet","the streets will get wet"]}).
-- Every `atoms[].pred` you emit MUST be one of the KEYS of `metadata.atom_lexicon`. Reuse the same canonical name for the same meaning across rules, facts, and conclusions.
-- If unsure, leave `atoms` empty for that statement.
-"""
+Schema:
+Node = {id, premises[], rule?, conclusion?, span?, rationale?}
+  Premise = Statement | {"kind":"Ref","ref":"nodeId"}
+  Statement = {text?, atoms[], quantifiers[], span?, rationale?, confidence?}
+  Rule = {name?, strict?, antecedents[], consequents[], exceptions[], span?, scheme?, rationale?}
+    - antecedents/consequents/exceptions are arrays of Statement objects with atoms[]
+Edge = {source, target, kind:"support"|"attack", attack_kind?:"rebut"|"undermine"|"undercut"|"unknown"}
+
+Required top-level keys: version, source_text, graph, metadata.
+- version: "0.3.x"
+- source_text: exactly the user input (verbatim).
+- graph: { nodes: InferenceStep[], edges: Edge[] }
+- metadata.atom_lexicon: { <canonical_pred>: [example_surface_forms...] , ... }
+
+HARD CONSTRAINTS (must hold in the final JSON):
+1) Canonical atoms
+   1.1 Every Statement or Rule atom uses atoms[].pred that is a KEY in metadata.atom_lexicon.
+   1.2 Do not invent predicates you don't also register in atom_lexicon.
+
+2) Node completeness
+   2.1 If a node appears in ANY edge (as source or target), that node MUST have either:
+       (a) a non-empty conclusion (Statement with atoms length ≥1), OR
+       (b) a rule object with ≥1 atom in antecedents AND ≥1 atom in consequents.
+   2.2 If you cannot populate a node used in an edge, remove the edge OR remove the node entirely.
+
+3) Rules for ALL derived conclusions
+   3.1 Any node with BOTH premises AND a conclusion MUST either:
+       (a) Have its own rule on the node, OR
+       (b) Reference a rule node that licenses the inference
+   3.2 Create explicit rule nodes for all inferences, including intermediate steps.
+   3.3 The main conclusion must be licensed by a rule (strict or defeasible).
+
+4) Edges
+   4.1 kind ∈ {"support","attack"}.
+   4.2 attack_kind present IFF kind="attack", and attack_kind ∈ {"rebut","undermine","undercut","unknown"}.
+   4.3 Edge endpoints must be existing node ids (no dangling references).
+
+5) Text–atom alignment
+   5.1 Every conclusion with atoms must be paraphrasable from source_text.
+   5.2 If you add an "implicit claim" node (IC…), it MUST also carry atoms and be connected by an edge.
+
+6) Optional but recommended
+   6.1 metadata.conflicts: list of contradictory predicate pairs (e.g., ["should_close","should_not_close_due_to_fear"]).
+   6.2 Suggest a single goal candidate id if there is a unique derived conclusion.
+
+SELF-CHECK before emitting JSON (redo/fix if any fail):
+- All ids in edges exist in nodes.
+- For every edge source: node has conclusion OR rule (2.1).
+- For every rule: antecedents[] and consequents[] arrays, each with ≥1 Statement having atoms.
+- Every atoms[].pred ∈ keys(metadata.atom_lexicon).
+- Every node with premises AND conclusion has a rule or references a rule node (3.1).
+- There is at least one rule that licenses the main conclusion (3.3).
+
+Output: ONLY the final JSON object. No explanations."""
 
 def build_prompt(text: str) -> str:
     return f"""SOURCE TEXT:\n{text}\n\nReturn ONLY the JSON object described above."""
