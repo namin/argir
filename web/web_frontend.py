@@ -26,14 +26,16 @@ def process_text():
         text = request.form.get('text', '').strip()
         defeasible_fol = request.form.get('defeasible_fol') == 'on'
         goal_id = request.form.get('goal_id', '').strip() or None
-        
+        # Strict mode is ON by default, user can opt out
+        strict = request.form.get('disable_strict') != 'on'
+
         if not text:
             flash('Please enter some text to analyze.', 'error')
             return redirect(url_for('index'))
-        
+
         # Run the pipeline
         fol_mode = "defeasible" if defeasible_fol else "classical"
-        result = run_pipeline(text, fol_mode=fol_mode, goal_id=goal_id)
+        result = run_pipeline(text, fol_mode=fol_mode, goal_id=goal_id, strict=strict)
         
         # Format results for display
         return render_template('results.html', 
@@ -58,11 +60,13 @@ def api_process():
         text = data['text'].strip()
         if not text:
             return jsonify({'error': 'Text cannot be empty'}), 400
-            
+
         fol_mode = data.get('fol_mode', 'classical')
         goal_id = data.get('goal_id')
-        
-        result = run_pipeline(text, fol_mode=fol_mode, goal_id=goal_id)
+        # Strict mode is ON by default in API, can be disabled with strict=false
+        strict = data.get('strict', True)
+
+        result = run_pipeline(text, fol_mode=fol_mode, goal_id=goal_id, strict=strict)
         
         return jsonify({
             'success': True,
