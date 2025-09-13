@@ -1,0 +1,134 @@
+{
+  "version": "0.3.2",
+  "source_text": "If it rains, the streets get wet, unless drains prevent wet streets. It is raining. So, the streets will get wet.",
+  "graph": {
+    "nodes": [
+      {
+        "id": "rule_1",
+        "premises": [],
+        "rule": {
+          "name": "Conditional",
+          "strict": false,
+          "antecedents": [
+            {
+              "kind": "Stmt",
+              "text": "it rains",
+              "atoms": [
+                {
+                  "pred": "raining",
+                  "args": [],
+                  "negated": false
+                }
+              ],
+              "quantifiers": [],
+              "span": null,
+              "rationale": null,
+              "confidence": null
+            }
+          ],
+          "consequents": [
+            {
+              "kind": "Stmt",
+              "text": "the streets get wet",
+              "atoms": [
+                {
+                  "pred": "streets_get_wet",
+                  "args": [],
+                  "negated": false
+                }
+              ],
+              "quantifiers": [],
+              "span": null,
+              "rationale": null,
+              "confidence": null
+            }
+          ],
+          "exceptions": [
+            {
+              "kind": "Stmt",
+              "text": "drains prevent wet streets",
+              "atoms": [
+                {
+                  "pred": "drains_prevent_wet_streets",
+                  "args": [],
+                  "negated": false
+                }
+              ],
+              "quantifiers": [],
+              "span": null,
+              "rationale": null,
+              "confidence": null
+            }
+          ],
+          "scheme": "unless"
+        },
+        "conclusion": null
+      },
+      {
+        "id": "premise_1",
+        "premises": [],
+        "rule": null,
+        "conclusion": {
+          "kind": "Stmt",
+          "text": "It is raining",
+          "atoms": [
+            {
+              "pred": "raining",
+              "args": [],
+              "negated": false
+            }
+          ],
+          "quantifiers": [],
+          "span": null,
+          "rationale": null,
+          "confidence": null
+        }
+      },
+      {
+        "id": "conclusion_1",
+        "premises": [
+          {
+            "kind": "Ref",
+            "ref": "rule_1"
+          },
+          {
+            "kind": "Ref",
+            "ref": "premise_1"
+          }
+        ],
+        "rule": null,
+        "conclusion": {
+          "kind": "Stmt",
+          "text": "the streets will get wet",
+          "atoms": [
+            {
+              "pred": "streets_get_wet",
+              "args": [],
+              "negated": false
+            }
+          ],
+          "quantifiers": [],
+          "span": null,
+          "rationale": null,
+          "confidence": null
+        }
+      }
+    ],
+    "edges": []
+  },
+  "metadata": {
+    "atom_lexicon": {
+      "raining": [
+        "it rains",
+        "it is raining"
+      ],
+      "streets_get_wet": [
+        "the streets get wet",
+        "the streets will get wet"
+      ],
+      "drains_prevent_wet_streets": [
+        "drains prevent wet streets"
+      ]
+    }
+  }
+}

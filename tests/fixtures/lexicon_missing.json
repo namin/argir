@@ -1,0 +1,30 @@
+{
+  "version": "0.3.2",
+  "source_text": "Some statement just to trigger missing lexicon (fixture supplies the malformed JSON).",
+  "graph": {
+    "nodes": [
+      {
+        "id": "s1",
+        "premises": [],
+        "rule": null,
+        "conclusion": {
+          "kind": "Stmt",
+          "text": "X",
+          "atoms": [
+            {
+              "pred": "X",
+              "args": [],
+              "negated": false
+            }
+          ],
+          "quantifiers": [],
+          "span": null,
+          "rationale": null,
+          "confidence": null
+        }
+      }
+    ],
+    "edges": []
+  },
+  "metadata": {}
+}

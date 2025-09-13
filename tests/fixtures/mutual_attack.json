@@ -1,0 +1,70 @@
+{
+  "version": "0.3.2",
+  "source_text": "A. However, not A.",
+  "graph": {
+    "nodes": [
+      {
+        "id": "A",
+        "premises": [],
+        "rule": null,
+        "conclusion": {
+          "kind": "Stmt",
+          "text": "A",
+          "atoms": [
+            {
+              "pred": "A",
+              "args": [],
+              "negated": false
+            }
+          ],
+          "quantifiers": [],
+          "span": null,
+          "rationale": null,
+          "confidence": null
+        }
+      },
+      {
+        "id": "notA",
+        "premises": [],
+        "rule": null,
+        "conclusion": {
+          "kind": "Stmt",
+          "text": "not A",
+          "atoms": [
+            {
+              "pred": "A",
+              "args": [],
+              "negated": true
+            }
+          ],
+          "quantifiers": [],
+          "span": null,
+          "rationale": null,
+          "confidence": null
+        }
+      }
+    ],
+    "edges": [
+      {
+        "source": "A",
+        "target": "notA",
+        "kind": "attack",
+        "attack_kind": "rebut"
+      },
+      {
+        "source": "notA",
+        "target": "A",
+        "kind": "attack",
+        "attack_kind": "rebut"
+      }
+    ]
+  },
+  "metadata": {
+    "atom_lexicon": {
+      "A": [
+        "A",
+        "not A"
+      ]
+    }
+  }
+}

@@ -1,0 +1,191 @@
+{
+  "version": "0.3.2",
+  "source_text": "If it rains, the streets get wet. If it rains, lawns get wet. It is raining. So, the streets will get wet. So, lawns will get wet.",
+  "graph": {
+    "nodes": [
+      {
+        "id": "r_street",
+        "premises": [],
+        "rule": {
+          "name": "Cond",
+          "strict": false,
+          "antecedents": [
+            {
+              "kind": "Stmt",
+              "text": "it rains",
+              "atoms": [
+                {
+                  "pred": "raining",
+                  "args": [],
+                  "negated": false
+                }
+              ],
+              "quantifiers": [],
+              "span": null,
+              "rationale": null,
+              "confidence": null
+            }
+          ],
+          "consequents": [
+            {
+              "kind": "Stmt",
+              "text": "streets get wet",
+              "atoms": [
+                {
+                  "pred": "streets_get_wet",
+                  "args": [],
+                  "negated": false
+                }
+              ],
+              "quantifiers": [],
+              "span": null,
+              "rationale": null,
+              "confidence": null
+            }
+          ],
+          "exceptions": []
+        },
+        "conclusion": null
+      },
+      {
+        "id": "r_lawn",
+        "premises": [],
+        "rule": {
+          "name": "Cond",
+          "strict": false,
+          "antecedents": [
+            {
+              "kind": "Stmt",
+              "text": "it rains",
+              "atoms": [
+                {
+                  "pred": "raining",
+                  "args": [],
+                  "negated": false
+                }
+              ],
+              "quantifiers": [],
+              "span": null,
+              "rationale": null,
+              "confidence": null
+            }
+          ],
+          "consequents": [
+            {
+              "kind": "Stmt",
+              "text": "lawns get wet",
+              "atoms": [
+                {
+                  "pred": "lawns_get_wet",
+                  "args": [],
+                  "negated": false
+                }
+              ],
+              "quantifiers": [],
+              "span": null,
+              "rationale": null,
+              "confidence": null
+            }
+          ],
+          "exceptions": []
+        },
+        "conclusion": null
+      },
+      {
+        "id": "p_rain",
+        "premises": [],
+        "rule": null,
+        "conclusion": {
+          "kind": "Stmt",
+          "text": "It is raining",
+          "atoms": [
+            {
+              "pred": "raining",
+              "args": [],
+              "negated": false
+            }
+          ],
+          "quantifiers": [],
+          "span": null,
+          "rationale": null,
+          "confidence": null
+        }
+      },
+      {
+        "id": "c_street",
+        "premises": [
+          {
+            "kind": "Ref",
+            "ref": "r_street"
+          },
+          {
+            "kind": "Ref",
+            "ref": "p_rain"
+          }
+        ],
+        "rule": null,
+        "conclusion": {
+          "kind": "Stmt",
+          "text": "streets will get wet",
+          "atoms": [
+            {
+              "pred": "streets_get_wet",
+              "args": [],
+              "negated": false
+            }
+          ],
+          "quantifiers": [],
+          "span": null,
+          "rationale": null,
+          "confidence": null
+        }
+      },
+      {
+        "id": "c_lawn",
+        "premises": [
+          {
+            "kind": "Ref",
+            "ref": "r_lawn"
+          },
+          {
+            "kind": "Ref",
+            "ref": "p_rain"
+          }
+        ],
+        "rule": null,
+        "conclusion": {
+          "kind": "Stmt",
+          "text": "lawns will get wet",
+          "atoms": [
+            {
+              "pred": "lawns_get_wet",
+              "args": [],
+              "negated": false
+            }
+          ],
+          "quantifiers": [],
+          "span": null,
+          "rationale": null,
+          "confidence": null
+        }
+      }
+    ],
+    "edges": []
+  },
+  "metadata": {
+    "atom_lexicon": {
+      "raining": [
+        "it rains",
+        "is raining"
+      ],
+      "streets_get_wet": [
+        "streets get wet",
+        "streets will get wet"
+      ],
+      "lawns_get_wet": [
+        "lawns get wet",
+        "lawns will get wet"
+      ]
+    }
+  }
+}

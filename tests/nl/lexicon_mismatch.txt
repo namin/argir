@@ -1,0 +1,1 @@
+If it rains, the streets get wet. It is raining. So, the streets will get wet. (fixture injects wrong atom name)

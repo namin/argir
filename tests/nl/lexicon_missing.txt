@@ -1,0 +1,1 @@
+Some statement just to trigger missing lexicon (fixture supplies the malformed JSON).
