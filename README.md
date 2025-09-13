@@ -1,5 +1,9 @@
 # ARGIR — Unified Argument IR
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/namin/argir)
+
 > A clean, strict, and analyzable pipeline from **natural language → argument graph → AF semantics → FOL (TPTP)**.
 
 See also [Argument Debugger](https://github.com/namin/argument-debugger), an LLM+ASP system for analyzing and repairing arguments.
