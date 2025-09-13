@@ -15,6 +15,10 @@ Node = {id, premises[], rule?, conclusion?, span?, rationale?}
     - antecedents/consequents/exceptions are arrays of Statement objects with atoms[]
 Edge = {source, target, kind:"support"|"attack", attack_kind?:"rebut"|"undermine"|"undercut"|"unknown"}
 
+Pattern: For derived conclusions, either:
+- Put the rule ON the node: {id:"N1", premises:[refs], rule:{...}, conclusion:{atoms}}
+- Reference a rule node: {id:"N1", premises:[refs, {"kind":"Ref","ref":"R1"}], conclusion:{atoms}}
+
 Required top-level keys: version, source_text, graph, metadata.
 - version: "0.3.x"
 - source_text: exactly the user input (verbatim).
@@ -32,10 +36,12 @@ HARD CONSTRAINTS (must hold in the final JSON):
        (b) a rule object with ≥1 atom in antecedents AND ≥1 atom in consequents.
    2.2 If you cannot populate a node used in an edge, remove the edge OR remove the node entirely.
 
-3) Bridging rule to the main conclusion
-   3.1 Identify the main conclusion(s) in the text.
-   3.2 Create at least ONE explicit rule node that licenses the main conclusion (strict or defeasible).
-   3.3 For any derived conclusion node, include premises with Ref(s) to supporting nodes and/or the rule node.
+3) Rules for ALL derived conclusions
+   3.1 Any node with BOTH premises AND a conclusion MUST either:
+       (a) Have its own rule on the node, OR
+       (b) Reference a rule node that licenses the inference
+   3.2 Create explicit rule nodes for all inferences, including intermediate steps.
+   3.3 The main conclusion must be licensed by a rule (strict or defeasible).
 
 4) Edges
    4.1 kind ∈ {"support","attack"}.
@@ -55,7 +61,8 @@ SELF-CHECK before emitting JSON (redo/fix if any fail):
 - For every edge source: node has conclusion OR rule (2.1).
 - For every rule: antecedents[] and consequents[] arrays, each with ≥1 Statement having atoms.
 - Every atoms[].pred ∈ keys(metadata.atom_lexicon).
-- There is at least one rule that licenses the main conclusion (3.1–3.3).
+- Every node with premises AND conclusion has a rule or references a rule node (3.1).
+- There is at least one rule that licenses the main conclusion (3.3).
 
 Output: ONLY the final JSON object. No explanations."""
 
