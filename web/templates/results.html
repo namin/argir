@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+
+{% block title %}ARGIR Results - Argument Analysis{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 2rem;">
+    <a href="{{ url_for('index') }}" class="btn" style="background: #95a5a6;">← Analyze Another Text</a>
+</div>
+
+<div class="card">
+    <h2>Analysis Results</h2>
+    <div style="background: #f8f9fa; padding: 1rem; border-radius: 4px; margin-bottom: 1rem;">
+        <strong>Input Text:</strong>
+        <p style="margin: 0.5rem 0; font-style: italic;">"{{ text }}"</p>
+        <small style="color: #666;">
+            Mode: {{ fol_mode | title }}
+            {% if goal_id %} | Goal: {{ goal_id }}{% endif %}
+        </small>
+    </div>
+</div>
+
+<!-- Human-readable Report -->
+<div class="card">
+    <h3>📝 Human-Readable Report</h3>
+    <div style="background: #f8f9fa; padding: 1.5rem; border-radius: 4px; overflow-x: auto;">
+        <pre style="white-space: pre-wrap; font-family: 'Monaco', 'Menlo', monospace; font-size: 0.9rem; margin: 0;">{{ result.report_md }}</pre>
+    </div>
+</div>
+
+<!-- Argument Graph (ARGIR JSON) -->
+<div class="card">
+    <h3>📊 Argument Graph (ARGIR JSON)</h3>
+    <details style="margin-bottom: 1rem;">
+        <summary style="cursor: pointer; font-weight: 500; padding: 0.5rem; background: #e8f4fd; border-radius: 4px;">
+            Click to view structured argument representation
+        </summary>
+        <div style="background: #f8f9fa; padding: 1.5rem; border-radius: 4px; margin-top: 1rem; overflow-x: auto;">
+            <pre style="font-family: 'Monaco', 'Menlo', monospace; font-size: 0.85rem; margin: 0;">{{ result.argir | tojson(indent=2) }}</pre>
+        </div>
+    </details>
+</div>
+
+<!-- FOL Output -->
+<div class="card">
+    <h3>🔬 First-Order Logic (TPTP Format)</h3>
+    {% if result.fof %}
+        <div style="background: #f8f9fa; padding: 1.5rem; border-radius: 4px; overflow-x: auto;">
+            <pre style="font-family: 'Monaco', 'Menlo', monospace; font-size: 0.9rem; margin: 0;">{% for line in result.fof %}{{ line }}
+{% endfor %}</pre>
+        </div>
+    {% else %}
+        <p style="color: #666; font-style: italic;">No FOL output generated.</p>
+    {% endif %}
+</div>
+
+<!-- Findings -->
+{% if result.findings %}
+<div class="card">
+    <h3>🔍 Analysis Findings</h3>
+    <div style="background: #f8f9fa; padding: 1.5rem; border-radius: 4px;">
+        {% for finding in result.findings %}
+            <div style="margin-bottom: 1rem; padding: 1rem; background: white; border-radius: 4px; border-left: 4px solid {% if finding.level == 'error' %}#e74c3c{% elif finding.level == 'warning' %}#f39c12{% else %}#3498db{% endif %};">
+                <strong>{{ finding.level | title }}:</strong> {{ finding.message }}
+                {% if finding.details %}
+                    <br><small style="color: #666;">{{ finding.details }}</small>
+                {% endif %}
+            </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Semantics -->
+{% if result.semantics %}
+<div class="card">
+    <h3>⚖️ Argumentation Framework Semantics</h3>
+    <details>
+        <summary style="cursor: pointer; font-weight: 500; padding: 0.5rem; background: #e8f4fd; border-radius: 4px;">
+            Click to view AF semantics
+        </summary>
+        <div style="background: #f8f9fa; padding: 1.5rem; border-radius: 4px; margin-top: 1rem; overflow-x: auto;">
+            <pre style="font-family: 'Monaco', 'Menlo', monospace; font-size: 0.85rem; margin: 0;">{{ result.semantics | tojson(indent=2) }}</pre>
+        </div>
+    </details>
+</div>
+{% endif %}
+
+<!-- FOL Summary (E-prover results if available) -->
+{% if result.fol_summary %}
+<div class="card">
+    <h3>🔬 FOL Proof Summary</h3>
+    <details>
+        <summary style="cursor: pointer; font-weight: 500; padding: 0.5rem; background: #e8f4fd; border-radius: 4px;">
+            Click to view E-prover results
+        </summary>
+        <div style="background: #f8f9fa; padding: 1.5rem; border-radius: 4px; margin-top: 1rem; overflow-x: auto;">
+            <pre style="font-family: 'Monaco', 'Menlo', monospace; font-size: 0.85rem; margin: 0;">{{ result.fol_summary | tojson(indent=2) }}</pre>
+        </div>
+    </details>
+</div>
+{% endif %}
+
+<!-- Debug Information -->
+{% if result.draft %}
+<div class="card">
+    <h3>🐛 Debug Information</h3>
+    <details>
+        <summary style="cursor: pointer; font-weight: 500; padding: 0.5rem; background: #e8f4fd; border-radius: 4px;">
+            Click to view raw LLM output
+        </summary>
+        <div style="background: #f8f9fa; padding: 1.5rem; border-radius: 4px; margin-top: 1rem; overflow-x: auto;">
+            <pre style="font-family: 'Monaco', 'Menlo', monospace; font-size: 0.85rem; margin: 0;">{{ result.draft | tojson(indent=2) }}</pre>
+        </div>
+    </details>
+</div>
+{% endif %}
+
+<style>
+    /* Mobile optimizations for results page */
+    @media (max-width: 768px) {
+        pre {
+            font-size: 0.75rem !important;
+        }
+        
+        details summary {
+            font-size: 0.9rem;
+        }
+        
+        .card h3 {
+            font-size: 1.2rem;
+        }
+    }
+    
+    @media (max-width: 480px) {
+        pre {
+            font-size: 0.7rem !important;
+            padding: 0.5rem !important;
+        }
+        
+        .card {
+            padding: 1rem !important;
+        }
+    }
+</style>
+{% endblock %}

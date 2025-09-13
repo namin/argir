@@ -70,7 +70,35 @@ python -m argir.cli examples/sample.txt --out out --goal conclusion_1
 
 ---
 
-## 4) Programmatic Usage
+## 4) Web Frontend
+
+For a simpler, graphical interface:
+
+```bash
+# Install dependencies (if not already installed)
+pip install flask gunicorn
+
+# Development server
+python web.py
+
+# Production server (recommended for deployment)
+python web.py --production
+
+# Open browser to: http://127.0.0.1:5000
+```
+
+The web frontend provides:
+- Clean, mobile-responsive interface
+- All CLI functionality (defeasible FOL, goal selection)
+- Rich results display with collapsible sections
+- API endpoint for programmatic access
+- Built-in examples to get started
+
+See `WEB_FRONTEND.md` for detailed usage instructions.
+
+---
+
+## 5) Programmatic Usage
 
 ```python
 from argir.pipeline import run_pipeline
@@ -90,7 +118,7 @@ print(res["argir"])       # canonical JSON-safe dict of the ARGIR
 
 ---
 
-## 5) The ARGIR Contract (What the LLM must produce)
+## 6) The ARGIR Contract (What the LLM must produce)
 
 ARGIR is strict on atoms to make FOL sound and comparable.
 
@@ -114,7 +142,7 @@ ARGIR is strict on atoms to make FOL sound and comparable.
 
 ---
 
-## 6) AF & FOL
+## 7) AF & FOL
 
 - **AF projection**: every node is an argument; attack edges become `att(a,b)`; support is not encoded in APX (kept in the graph for coherence checks).
 
@@ -131,7 +159,7 @@ ARGIR is strict on atoms to make FOL sound and comparable.
 
 ---
 
-## 7) Testing
+## 8) Testing
 
 A separate test suite (natural‑language + fixtures) is available.
 
@@ -153,7 +181,7 @@ The suite checks: canonical atoms, reference‑aware coherence, defeasible lower
 
 ---
 
-## 8) Troubleshooting
+## 9) Troubleshooting
 
 - **`LLMNotConfigured`**  
   Set either `GEMINI_API_KEY` or `GOOGLE_CLOUD_PROJECT` (+ `GOOGLE_CLOUD_LOCATION`).
