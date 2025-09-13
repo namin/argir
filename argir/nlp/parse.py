@@ -15,9 +15,10 @@ Node = {id, premises[], rule?, conclusion?, span?, rationale?}
     - antecedents/consequents/exceptions are arrays of Statement objects with atoms[]
 Edge = {source, target, kind:"support"|"attack", attack_kind?:"rebut"|"undermine"|"undercut"|"unknown"}
 
-Pattern: For derived conclusions, either:
-- Put the rule ON the node: {id:"N1", premises:[refs], rule:{...}, conclusion:{atoms}}
-- Reference a rule node: {id:"N1", premises:[refs, {"kind":"Ref","ref":"R1"}], conclusion:{atoms}}
+Patterns:
+- Base fact: {id:"F1", premises:[], conclusion:{atoms}}
+- Derived with rule ref: {id:"N1", premises:[{"kind":"Ref","ref":"F1"}, {"kind":"Ref","ref":"R1"}], conclusion:{atoms}}
+- Rule node: {id:"R1", rule:{antecedents, consequents}, conclusion:null}
 
 Required top-level keys: version, source_text, graph, metadata.
 - version: "0.3.x"
@@ -31,10 +32,11 @@ HARD CONSTRAINTS (must hold in the final JSON):
    1.2 Do not invent predicates you don't also register in atom_lexicon.
 
 2) Node completeness
-   2.1 If a node appears in ANY edge (as source or target), that node MUST have either:
+   2.1 All facts from the text should be separate nodes with premises:[] and conclusion:{atoms}.
+   2.2 If a node appears in ANY edge (as source or target), that node MUST have either:
        (a) a non-empty conclusion (Statement with atoms length ≥1), OR
        (b) a rule object with ≥1 atom in antecedents AND ≥1 atom in consequents.
-   2.2 If you cannot populate a node used in an edge, remove the edge OR remove the node entirely.
+   2.3 Premises should reference nodes via {"kind":"Ref","ref":"nodeId"}, not inline Statements.
 
 3) Rules for ALL derived conclusions
    3.1 Any node with BOTH premises AND a conclusion MUST either:
