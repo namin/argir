@@ -1,4 +1,4 @@
-# ARGIR — Unified Argument IR (v0.3.3)
+# ARGIR — Unified Argument IR
 
 > A clean, strict, and analyzable pipeline from **natural language → argument graph → AF semantics → FOL (TPTP)**.
 
