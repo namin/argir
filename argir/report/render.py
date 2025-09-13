@@ -86,6 +86,14 @@ def to_markdown(u: ARGIR, findings: List[dict], semantics: dict|None, fol_summar
         for f in findings: lines.append(f"- **{f.get('kind','finding')}**: {f.get('message', f)}")
     else:
         lines.append("- (none)")
+
+    # Add validation issues section if present
+    if parse_info.get("validation_issues"):
+        lines.append("\n## ⚠️ Validation Issues\n")
+        lines.append("The following potential issues were detected in the argument structure:\n")
+        for issue in parse_info["validation_issues"]:
+            lines.append(f"- **Node `{issue['node']}`**: {issue['message']}")
+        lines.append("\n*These are warnings about potentially incomplete reasoning but do not prevent processing.*")
     if semantics:
         import json as _j
         lines.append("\n## AF Semantics\n```"); lines.append(_j.dumps(semantics, indent=2)); lines.append("```")

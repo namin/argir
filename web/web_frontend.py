@@ -36,15 +36,22 @@ def process_text():
         # Run the pipeline
         fol_mode = "defeasible" if defeasible_fol else "classical"
         result = run_pipeline(text, fol_mode=fol_mode, goal_id=goal_id, strict=strict)
-        
+
+        # Show validation issues as warnings if present
+        if result.get('validation_issues'):
+            warning_msg = "⚠️ Validation issues detected:\n"
+            for issue in result['validation_issues']:
+                warning_msg += f"• Node '{issue['node']}': {issue['message']}\n"
+            warning_msg += "\nThese are warnings about potentially incomplete reasoning. Results have been generated but may need review."
+            flash(warning_msg, 'warning')
+
         # Format results for display
-        return render_template('results.html', 
+        return render_template('results.html',
                              text=text,
                              result=result,
                              fol_mode=fol_mode,
                              goal_id=goal_id,
                              version=_argir_pkg.__version__)
-    
     except Exception as e:
         flash(f'Error processing text: {str(e)}', 'error')
         return redirect(url_for('index'))
@@ -67,12 +74,19 @@ def api_process():
         strict = data.get('strict', True)
 
         result = run_pipeline(text, fol_mode=fol_mode, goal_id=goal_id, strict=strict)
-        
-        return jsonify({
+
+        # Include validation issues in response if present
+        response = {
             'success': True,
             'result': result
-        })
-    
+        }
+        if result.get('validation_issues'):
+            response['warnings'] = {
+                'validation_issues': result['validation_issues'],
+                'message': 'Validation issues detected. Results generated but may need review.'
+            }
+
+        return jsonify(response)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

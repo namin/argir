@@ -128,6 +128,12 @@
             border: 1px solid #cfc;
             color: #3c3;
         }
+
+        .alert-warning {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+        }
         
         .footer {
             text-align: center;
@@ -180,8 +186,8 @@
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
-                    <div class="alert alert-{{ 'error' if category == 'error' else 'success' }}">
-                        {{ message }}
+                    <div class="alert alert-{{ 'error' if category == 'error' else ('warning' if category == 'warning' else 'success') }}">
+                        <pre style="white-space: pre-wrap; word-wrap: break-word; margin: 0; font-family: inherit;">{{ message }}</pre>
                     </div>
                 {% endfor %}
             {% endif %}
