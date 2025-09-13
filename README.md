@@ -94,7 +94,7 @@ The web frontend provides:
 - API endpoint for programmatic access
 - Built-in examples to get started
 
-See `WEB_FRONTEND.md` for detailed usage instructions.
+See `WEB.md` for detailed usage instructions.
 
 ---
 
