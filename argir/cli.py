@@ -9,7 +9,6 @@ def main():
     parser.add_argument("--out", default="out", help="Output folder")
     parser.add_argument("--defeasible-fol", action="store_true", help="Export FOL with simple defeasible exceptions (~exceptions in antecedent)")
     parser.add_argument("--goal", help="Node id to use as the conjecture goal (overrides auto selection)")
-    parser.add_argument("--strict", action="store_true", help="Enable strict validation checks (shows warnings for incomplete reasoning)")
     parser.add_argument("--strict-fail", action="store_true", help="Fail on strict validation errors (for CI/CD)")
     parser.add_argument("-V","--version", action="store_true", help="Print version and module path and exit")
     args = parser.parse_args()
@@ -22,9 +21,7 @@ def main():
         text = f.read()
     print(f"[ARGIR] Using package at: {_argir_pkg.__file__} (v{_argir_pkg.__version__})")
 
-    # Enable strict by default or if explicitly requested
-    strict = args.strict or args.strict_fail or True  # Default to True
-    res = run_pipeline(text, fol_mode=("defeasible" if args.defeasible_fol else "classical"), goal_id=args.goal, strict=strict)
+    res = run_pipeline(text, fol_mode=("defeasible" if args.defeasible_fol else "classical"), goal_id=args.goal)
 
     # Handle validation issues
     if res.get('validation_issues'):

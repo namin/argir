@@ -2,58 +2,46 @@ from __future__ import annotations
 from typing import List, Dict, Any, Set
 from ..core.model import ARGIR, Statement, NodeRef
 
-Fatal = Dict[str, Any]
+ValidationIssue = Dict[str, Any]
 
-def _has_atoms(stmt: Statement|None) -> bool:
-    return bool(stmt and stmt.atoms)
+def strict_validate(u: ARGIR) -> List[ValidationIssue]:
+    """Validate argument structure and return list of issues."""
+    issues: List[ValidationIssue] = []
 
-def validate_edge_sources_have_content(u: ARGIR) -> List[Fatal]:
-    """Any node used in an edge must have a conclusion (with atoms) or a rule."""
-    used: Set[str] = {e.source for e in u.graph.edges} | {e.target for e in u.graph.edges}
-    bad = []
-    for n in u.graph.nodes:
-        if n.id in used and not n.rule and not _has_atoms(n.conclusion):
-            bad.append({
+    # Track which nodes are used in edges and which have rules
+    edge_nodes: Set[str] = {e.source for e in u.graph.edges} | {e.target for e in u.graph.edges}
+    rule_nodes: Set[str] = {n.id for n in u.graph.nodes if n.rule}
+
+    for node in u.graph.nodes:
+        has_atoms = bool(node.conclusion and node.conclusion.atoms)
+
+        # Check: Nodes in edges must have content
+        if node.id in edge_nodes and not node.rule and not has_atoms:
+            issues.append({
                 "kind": "edge_source_empty",
-                "node": n.id,
+                "node": node.id,
                 "message": "Node participates in an edge but has neither conclusion atoms nor a rule."
             })
-    return bad
 
-def validate_rule_completeness(u: ARGIR) -> List[Fatal]:
-    """Every rule must have ≥1 antecedent atom AND ≥1 consequent atom."""
-    bad = []
-    for n in u.graph.nodes:
-        if n.rule:
-            ants = sum(len(s.atoms) for s in (n.rule.antecedents or []))
-            cons = sum(len(s.atoms) for s in (n.rule.consequents or []))
+        # Check: Rules must be complete
+        if node.rule:
+            ants = sum(len(s.atoms) for s in (node.rule.antecedents or []))
+            cons = sum(len(s.atoms) for s in (node.rule.consequents or []))
             if ants == 0 or cons == 0:
-                bad.append({
+                issues.append({
                     "kind": "rule_incomplete",
-                    "node": n.id,
+                    "node": node.id,
                     "message": "Rule must have ≥1 antecedent atom and ≥1 consequent atom."
                 })
-    return bad
 
-def validate_inference_has_bridge(u: ARGIR) -> List[Fatal]:
-    """Derived conclusions must be licensed by a rule on the node OR a Ref to some rule node."""
-    rule_ids = {n.id for n in u.graph.nodes if n.rule}
-    bad = []
-    for n in u.graph.nodes:
-        if n.premises and _has_atoms(n.conclusion):
-            has_rule_here = bool(n.rule)
-            has_ref_to_rule = any(isinstance(p, NodeRef) and p.ref in rule_ids for p in n.premises)
-            if not (has_rule_here or has_ref_to_rule):
-                bad.append({
+        # Check: Derived conclusions need rules
+        if node.premises and has_atoms:
+            has_rule_ref = any(isinstance(p, NodeRef) and p.ref in rule_nodes for p in node.premises)
+            if not node.rule and not has_rule_ref:
+                issues.append({
                     "kind": "inference_missing_rule",
-                    "node": n.id,
+                    "node": node.id,
                     "message": "Derived conclusion lacks a rule or a Ref to a rule node."
                 })
-    return bad
 
-def strict_validate(u: ARGIR) -> List[Fatal]:
-    fatals: List[Fatal] = []
-    fatals += validate_edge_sources_have_content(u)
-    fatals += validate_rule_completeness(u)
-    fatals += validate_inference_has_bridge(u)
-    return fatals
+    return issues
