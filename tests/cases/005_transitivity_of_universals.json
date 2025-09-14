@@ -1,0 +1,16 @@
+{
+  "id": "005",
+  "name": "Transitivity of universals",
+  "text": "All cats are mammals. All mammals are animals. Therefore, all cats are animals.",
+  "options": {
+    "soft": true,
+    "defeasible_fol": false,
+    "k_samples": 1
+  },
+  "checks": {
+    "fof_must_match": [
+      "!\\s*\\[",
+      "!\\s*\\["
+    ]
+  }
+}

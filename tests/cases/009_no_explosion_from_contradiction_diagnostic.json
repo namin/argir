@@ -1,0 +1,11 @@
+{
+  "id": "009",
+  "name": "No explosion from contradiction (diagnostic)",
+  "text": "It is raining. It is not raining. Therefore, the streets are wet.",
+  "options": {
+    "soft": true,
+    "defeasible_fol": false,
+    "k_samples": 1
+  },
+  "checks": {}
+}

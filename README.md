@@ -103,7 +103,13 @@ For a simpler, see `WEB_README.md`
 
 ---
 
-## 5) Programmatic Usage
+## 5) Tests
+
+Run `python tests/run.py`. Do export `CACHE_LLM=true`.
+
+---
+
+## 6) Programmatic Usage
 
 ```python
 from argir.pipeline import run_pipeline, run_pipeline_soft
@@ -129,7 +135,7 @@ print(res["argir"])       # canonical JSON-safe dict of the ARGIR
 
 ---
 
-## 6) Soft Pipeline (Recommended)
+## 7) Soft Pipeline (Recommended)
 
 The **soft pipeline** (`--soft` flag) is a more robust two-stage approach that addresses the brittleness of one-shot ARGIR generation:
 
@@ -160,7 +166,7 @@ The **soft pipeline** (`--soft` flag) is a more robust two-stage approach that a
 
 ---
 
-## 7) The ARGIR Contract (Strict Mode)
+## 8) The ARGIR Contract (Strict Mode)
 
 ARGIR is strict on atoms to make FOL sound and comparable.
 
@@ -184,7 +190,7 @@ ARGIR is strict on atoms to make FOL sound and comparable.
 
 ---
 
-## 8) AF & FOL
+## 9) AF & FOL
 
 - **AF projection**: every node is an argument; attack edges become `att(a,b)`; support is not encoded in APX (kept in the graph for coherence checks).
 
@@ -209,7 +215,7 @@ ARGIR is strict on atoms to make FOL sound and comparable.
 
 ---
 
-## 9) Troubleshooting
+## 10) Troubleshooting
 
 - **`LLMNotConfigured`**  
   Set either `GEMINI_API_KEY` or `GOOGLE_CLOUD_PROJECT` (+ `GOOGLE_CLOUD_LOCATION`).
