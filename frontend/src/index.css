@@ -170,13 +170,20 @@ summary:hover {
   font-weight: 500;
 }
 
-.tab:hover {
-  color: #374151;
+.tab:hover:not(:disabled):not(.active) {
+  color: #111827;
+  background-color: #f9fafb;
 }
 
 .tab.active {
   color: #2563eb;
   border-bottom-color: #2563eb;
+  background-color: transparent;
+}
+
+.tab.active:hover {
+  color: #2563eb;
+  background-color: #eff6ff;
 }
 
 .tab:disabled {
