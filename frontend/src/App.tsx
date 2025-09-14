@@ -68,6 +68,7 @@ function App() {
   const analyze = async () => {
     setLoading(true);
     setError(null);
+    setResult(null);  // Clear previous results
 
     try {
       const headers: Record<string, string> = {
