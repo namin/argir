@@ -68,7 +68,8 @@ python -m argir.cli examples/sample.txt --out out
 python -m argir.cli examples/sample.txt --out out --defeasible-fol
 
 # Optional: choose a specific goal to prove in FOL (by node id)
-python -m argir.cli examples/sample.txt --out out --goal conclusion_1
+# First run without --goal to see node IDs in report.md, then use one like:
+python -m argir.cli examples/sample.txt --out out --goal C1
 ```
 
 **Outputs written to `--out`**:
@@ -174,6 +175,8 @@ ARGIR is strict on atoms to make FOL sound and comparable.
 - **Goal selection**:
   - If exactly one inference node is unreferenced → auto `fof(goal, conjecture, …)`.
   - Otherwise, supply `--goal NODE_ID` to force a conjecture.
+  - To find node IDs: run once without `--goal`, check `report.md` for node IDs (e.g., C1, R1, P1)
+  - The auto-selected goal (if any) appears in `metadata.goal_candidate_id` in `argir.json`
 
 ---
 

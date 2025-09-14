@@ -114,7 +114,12 @@ def _solve_models(facts: str, lp: str) -> List[FrozenSet[str]]:
     out: List[FrozenSet[str]] = []
     with ctl.solve(yield_=True) as h:
         for m in h:
-            ext = frozenset(str(sym.arguments[0]) for sym in m.symbols(shown=True) if sym.name == "in")
+            # Strip quotes from node IDs that were quoted for ASP
+            ext = frozenset(
+                str(sym.arguments[0]).strip('"')
+                for sym in m.symbols(shown=True)
+                if sym.name == "in"
+            )
             out.append(ext)
     return out
 

@@ -9,6 +9,11 @@ def af_projection(argir: ARGIR) -> tuple[list[str], list[tuple[str,str]]]:
             att.append((e.source, e.target))
     return sorted(args), att
 def to_apx(arguments: list[str], attacks: list[tuple[str,str]]) -> str:
-    lines = [f"arg({a})." for a in arguments]
-    lines += [f"att({s},{t})." for (s,t) in attacks]
+    # Quote identifiers to ensure they're treated as constants in ASP
+    # (uppercase letters would be treated as variables)
+    def quote_id(s: str) -> str:
+        return f'"{s}"' if s and s[0].isupper() else s
+
+    lines = [f"arg({quote_id(a)})." for a in arguments]
+    lines += [f"att({quote_id(s)},{quote_id(t)})." for (s,t) in attacks]
     return "\n".join(lines) + "\n"
