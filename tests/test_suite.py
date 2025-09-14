@@ -1,7 +1,7 @@
 
 import os, unittest, json, re
 from typing import List, Dict, Any
-from harness import run_case
+from tests.harness import run_case
 
 def _has_goal(fof_lines: List[str], pred: str) -> bool:
     for ln in fof_lines:
