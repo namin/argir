@@ -1,5 +1,6 @@
 from __future__ import annotations
 from typing import List, Tuple, Optional
+from collections import defaultdict
 import re
 from .ast import Atom, Pred, Var, Const, Forall, Exists, Not, And, Or, Implies, Formula, Term
 from ..core.model import ARGIR, Statement, NodeRef, InferenceStep
@@ -125,6 +126,75 @@ def _stmt_is_0ary(s: Statement) -> bool:
     """Check if all atoms in a statement are 0-arity."""
     # Guard against empty atom lists (all([]) == True)
     return bool(s.atoms) and all(len(a.args) == 0 for a in s.atoms)
+
+# ---------- Goal synthesis utilities ----------
+def _collect_unary_facts(u: ARGIR):
+    """
+    Return (pos, neg) where pos[pred] and neg[pred] are sets of constant names c
+    such that pred(c) / ¬pred(c) occur as CONCLUSIONS in the graph.
+    Only unary atoms with constant arguments are considered.
+    """
+    pos, neg = defaultdict(set), defaultdict(set)
+    for n in u.graph.nodes:
+        s = n.conclusion
+        if not s:
+            continue
+        for a in (s.atoms or []):
+            if len(a.args) != 1:
+                continue
+            arg = a.args[0]
+            if getattr(arg, "kind", None) != "Const" and not hasattr(arg, 'kind'):
+                # If no kind attribute, check if it's dict-like
+                if isinstance(arg, dict) and arg.get("kind") != "Const":
+                    continue
+            elif getattr(arg, "kind", None) != "Const":
+                continue
+            c = arg.name if hasattr(arg, 'name') else arg.get("name", "")
+            (neg if a.negated else pos)[a.pred].add(c)
+    return pos, neg
+
+def _unary_var_pred(s: Statement) -> Optional[str]:
+    """
+    If s is a single unary atom with a variable argument, return its predicate name, else None.
+    """
+    if not s or not s.atoms or len(s.atoms) != 1:
+        return None
+    a = s.atoms[0]
+    if len(a.args) != 1:
+        return None
+    arg = a.args[0]
+    # Check if it's a variable
+    if hasattr(arg, 'kind'):
+        is_var = getattr(arg, "kind", None) == "Var"
+    elif isinstance(arg, dict):
+        is_var = arg.get("kind") == "Var"
+    else:
+        is_var = False
+    return a.pred if is_var else None
+
+def _synthesize_counterexample_goal(u: ARGIR) -> Optional[Formula]:
+    """
+    Look for a universal-style rule  P(X) -> Q(X)  and a witnessed counterexample
+    P(c) and ¬Q(c). If found, return  ∃X. P(X) ∧ ¬Q(X)  as a conjecture.
+    """
+    pos, neg = _collect_unary_facts(u)
+    for n in u.graph.nodes:
+        if not n.rule:
+            continue
+        ants = n.rule.antecedents or []
+        cons = n.rule.consequents or []
+        if len(ants) != 1 or len(cons) != 1:
+            continue
+        P = _unary_var_pred(ants[0])
+        Q = _unary_var_pred(cons[0])
+        if not P or not Q:
+            continue
+        witnesses = pos.get(P, set()) & neg.get(Q, set())
+        if witnesses:
+            X = Var("X")
+            phi = And(Atom(Pred(P, 1), [X], False), Not(Atom(Pred(Q, 1), [X], False)))
+            return Exists(X, phi)
+    return None
 
 def choose_goal_node(u: ARGIR, goal_id: Optional[str] = None) -> Optional[str]:
     """Choose goal node with improved heuristics:
@@ -266,9 +336,51 @@ def argir_to_fof(u: ARGIR, *, fol_mode: str = "classical", goal_id: Optional[str
                 core = Implies(prem, concl)
                 core = _forall_wrap(vars_p | vars_c, core)
                 out.append((f"node_{n.id}_link", fof(f"node_{n.id}_link", "axiom", core)))
-    chosen = choose_goal_node(u, goal_id=goal_id)
-    if chosen:
-        g = id2node.get(chosen)
-        if g and g.conclusion:
-            out.append(("goal", fof("goal", "conjecture", stmt_to_formula(g.conclusion))))
+    # ---------- Goal ----------
+    goal_emitted = False
+
+    # A) Try to synthesize ∃X (P(X) ∧ ¬Q(X)) from rule + counterexample (e.g., penguin defeats 'all birds fly')
+    synth = _synthesize_counterexample_goal(u)
+    if synth is not None:
+        out.append(("goal", fof("goal", "conjecture", synth)))
+        goal_emitted = True
+
+    # B) Otherwise, pick a node; prefer quantified conclusions; if ground, fall back to a quantified rule
+    if not goal_emitted:
+        chosen = choose_goal_node(u, goal_id=goal_id)
+        if chosen:
+            g = id2node.get(chosen)
+            if g and g.conclusion:
+                # If conclusion has variables → good; else, try to use a rule as a quantified goal instead
+                if _stmt_has_vars(g.conclusion):
+                    out.append(("goal", fof("goal", "conjecture", stmt_to_formula(g.conclusion))))
+                    goal_emitted = True
+                elif g.rule:
+                    out.append(("goal", fof("goal", "conjecture", rule_to_formula(g, fol_mode=fol_mode))))
+                    goal_emitted = True
+                else:
+                    # Use the conclusion anyway if no rule
+                    out.append(("goal", fof("goal", "conjecture", stmt_to_formula(g.conclusion))))
+                    goal_emitted = True
+            elif g and g.rule:
+                out.append(("goal", fof("goal", "conjecture", rule_to_formula(g, fol_mode=fol_mode))))
+                goal_emitted = True
+
+    # C) Final safety: if still no goal, choose ANY rule with variables; else ANY conclusion with variables.
+    if not goal_emitted:
+        for n in u.graph.nodes:
+            if n.rule:
+                rule_formula = rule_to_formula(n, fol_mode=fol_mode)
+                # Check if the rule is not trivial (not just an nl_rule_*)
+                if not isinstance(rule_formula, Atom) or not rule_formula.pred.name.startswith("nl_rule_"):
+                    out.append(("goal", fof("goal", "conjecture", rule_formula)))
+                    goal_emitted = True
+                    break
+    if not goal_emitted:
+        for n in u.graph.nodes:
+            if n.conclusion and _stmt_has_vars(n.conclusion):
+                out.append(("goal", fof("goal", "conjecture", stmt_to_formula(n.conclusion))))
+                goal_emitted = True
+                break
+
     return out
