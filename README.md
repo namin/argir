@@ -17,11 +17,16 @@ This README covers setup, CLI usage, LLM configuration, generated outputs, testi
 You can run the package straight from source (no build needed).
 
 ```bash
-# Dependencies (Python 3.9+)
-pip install "pydantic>=2.0" google-genai
-# Optional: joblib (for prompt/response caching), eprover (for proof search)
+# Core dependencies (Python 3.9+)
+pip install "pydantic>=2.0" google-genai clingo
+
+# Optional dependencies:
+# - joblib (for prompt/response caching)
 pip install joblib
-# eprover is a native binary; install it via your package manager if you want proofs
+
+# System dependencies:
+# - eprover: FOL theorem prover (install via package manager, e.g., apt/brew)
+# - clingo: ASP solver with Python bindings (included above via pip)
 ```
 
 ---
@@ -68,11 +73,13 @@ python -m argir.cli examples/sample.txt --out out --goal conclusion_1
 ```
 
 **Outputs written to `--out`**:
-- `report.md` — human‑readable report (nodes, edges, findings, AF, FOL)
+- `report.md` — human‑readable report (nodes, edges, findings, AF semantics, FOL)
 - `argir.json` — canonical ARGIR object (strictly validated)
 - `fof.p` — TPTP FOF axioms + (optional) conjecture
 - `draft.json` — raw LLM JSON (for debugging)
 - `fol_summary.json` — E‑prover summary (if `eprover` is installed)
+
+The **AF Semantics** section in `report.md` shows accepted arguments under different semantics (grounded, preferred, stable) computed via clingo
 
 ---
 
@@ -152,6 +159,12 @@ ARGIR is strict on atoms to make FOL sound and comparable.
 
 - **AF projection**: every node is an argument; attack edges become `att(a,b)`; support is not encoded in APX (kept in the graph for coherence checks).
 
+- **AF Semantics computation**: ARGIR uses **clingo** (Answer Set Programming solver) to compute standard Dung semantics:
+  - **Grounded**: the minimal complete extension
+  - **Preferred**: maximal admissible sets
+  - **Stable**: extensions that attack all outside arguments
+  - Results appear in `report.md` under "AF Semantics" section with accepted arguments
+
 - **FOL lowering** (TPTP FOF):
   - Always emits:
     - **Rule axioms** for rule nodes (antecedents ⇒ consequents).
@@ -201,9 +214,13 @@ The suite checks: canonical atoms, reference‑aware coherence, defeasible lower
 - **No `fof(goal, ...)` emitted**  
   Multiple candidate conclusions. Use `--goal NODE_ID`.
 
-- **E‑prover “not found”**  
+- **E‑prover "not found"**
   Install eprover (optional). The rest of the pipeline still works.
 
-- **Version/path confusion**  
+- **Clingo import error in AF semantics**
+  Install clingo: `pip install clingo` (or via conda: `conda install -c potassco clingo`).
+  If clingo is not available, AF semantics computation will be skipped but the pipeline continues.
+
+- **Version/path confusion**
   Use `python -m argir.cli -V` to see the active package path and version.
 
