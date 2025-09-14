@@ -180,29 +180,7 @@ ARGIR is strict on atoms to make FOL sound and comparable.
 
 ---
 
-## 8) Testing
-
-A separate test suite (natural‑language + fixtures) is available.
-
-**Deterministic (fixtures only):**
-
-```bash
-# Run with fixtures (no LLM calls)
-ARGIR_TEST_MODE=fixtures python -m unittest tests/test_suite.py -v
-# or use the provided run_tests.py in the suite repo
-```
-
-**LLM mode:**
-
-```bash
-python -m unittest tests/test_suite.py -v
-```
-
-The suite checks: canonical atoms, reference‑aware coherence, defeasible lowering, APX, cycles, and strict lexicon errors.
-
----
-
-## 9) Troubleshooting
+## 8) Troubleshooting
 
 - **`LLMNotConfigured`**  
   Set either `GEMINI_API_KEY` or `GOOGLE_CLOUD_PROJECT` (+ `GOOGLE_CLOUD_LOCATION`).
