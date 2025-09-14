@@ -95,7 +95,8 @@ def run_pipeline_soft(text: str, fol_mode: str = "classical", goal_id: Optional[
                             premises.append(SoftStatement(
                                 pred=p.get("pred", ""),
                                 args=args,
-                                polarity=p.get("polarity", "pos")
+                                polarity=p.get("polarity", "pos"),
+                                quantifiers=p.get("quantifiers")  # Pass through quantifiers
                             ))
 
                 # Parse rule if present
@@ -108,7 +109,8 @@ def run_pipeline_soft(text: str, fol_mode: str = "classical", goal_id: Optional[
                             stmts.append(SoftStatement(
                                 pred=s.get("pred", ""),
                                 args=args,
-                                polarity=s.get("polarity", "pos")
+                                polarity=s.get("polarity", "pos"),
+                                quantifiers=s.get("quantifiers")  # Pass through quantifiers
                             ))
                         return stmts
 
@@ -127,7 +129,8 @@ def run_pipeline_soft(text: str, fol_mode: str = "classical", goal_id: Optional[
                     conclusion = SoftStatement(
                         pred=c_data.get("pred", ""),
                         args=args,
-                        polarity=c_data.get("polarity", "pos")
+                        polarity=c_data.get("polarity", "pos"),
+                        quantifiers=c_data.get("quantifiers")  # Pass through quantifiers
                     )
 
                 nodes.append(SoftNode(
@@ -154,7 +157,8 @@ def run_pipeline_soft(text: str, fol_mode: str = "classical", goal_id: Optional[
                 version=soft_data.get("version", "soft-0.1"),
                 source_text=text,  # Use original text
                 graph=SoftGraph(nodes=nodes, edges=edges),
-                metadata=soft_data.get("metadata", {})
+                metadata=soft_data.get("metadata", {}),
+                goal=soft_data.get("goal")  # Pass through goal
             )
 
             # Compile to strict ARGIR

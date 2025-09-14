@@ -44,6 +44,22 @@ def _canon_stmt(stmt: SoftStatement, at: AtomTable) -> Tuple[str, int, dict]:
     # Args must be Term objects with kind and name fields - now preserving variables
     args = [_mk_term(t.value) for t in stmt.args]
 
+    # Transform soft quantifiers to strict ARGIR format
+    # Soft format: [{"kind": "exists", "vars": ["X", "Y"]}]
+    # Strict format: [{"kind": "exists", "var": "X"}, {"kind": "exists", "var": "Y"}]
+    soft_qs = getattr(stmt, "quantifiers", None) or []
+    qs = []
+    for q in soft_qs:
+        if isinstance(q, dict):
+            kind = q.get("kind", "forall")
+            vars_list = q.get("vars", [])
+            # Create individual Quantifier objects for each variable
+            for var in vars_list:
+                qs.append({"kind": kind, "var": var})
+        # If it's already in the right format, keep it
+        elif hasattr(q, "kind") and hasattr(q, "var"):
+            qs.append({"kind": q.kind, "var": q.var})
+
     # Prepend extracted entities as arguments (always constants)
     if extracted_entities:
         entity_args = [{"kind": "Const", "name": e} for e in extracted_entities]
@@ -57,7 +73,7 @@ def _canon_stmt(stmt: SoftStatement, at: AtomTable) -> Tuple[str, int, dict]:
             "args": args,
             "negated": stmt.polarity == "neg"
         }],
-        "quantifiers": [],  # Will be quantified at FOL-lowering time
+        "quantifiers": qs,
         "span": None,
         "rationale": None,
         "confidence": None
@@ -154,16 +170,36 @@ def compile_soft_ir(soft: SoftIR, *, existing_atoms: AtomTable | None = None) ->
                    **({"rationale": e.rationale} if e.rationale else {})}
                   for e in soft.graph.edges]
 
+    # Handle goal from soft IR
+    goal_id = None
+    if hasattr(soft, 'goal') and soft.goal:
+        if isinstance(soft.goal, dict):
+            old_goal_id = soft.goal.get('node_id')
+            # Map the goal ID through the ID mapping
+            goal_id = idmap.get(old_goal_id, old_goal_id)
+
+    # Check metadata as fallback (including legacy goal_candidate_id)
+    if not goal_id and hasattr(soft, 'metadata') and isinstance(soft.metadata, dict):
+        old_goal_id = soft.metadata.get('goal_id') or soft.metadata.get('goal_candidate_id')
+        if old_goal_id:
+            goal_id = idmap.get(old_goal_id, old_goal_id)
+
     # Compose strict ARGIR object
+    metadata = {
+        # Provide lexicon deterministically to satisfy the contract
+        "atom_lexicon": at.to_lexicon(),
+        "implicit_rules_synthesized": len(implicit_rules) > 0
+    }
+
+    # Add goal_id to metadata if present
+    if goal_id:
+        metadata["goal_id"] = goal_id
+
     argir_obj = {
         "version": soft.version or "0.3.2",
         "source_text": soft.source_text,
         "graph": {"nodes": hard_nodes, "edges": hard_edges},
-        "metadata": {
-            # Provide lexicon deterministically to satisfy the contract
-            "atom_lexicon": at.to_lexicon(),
-            "implicit_rules_synthesized": len(implicit_rules) > 0
-        }
+        "metadata": metadata
     }
 
     # Validate + deterministic patchers

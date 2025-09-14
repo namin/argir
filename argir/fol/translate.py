@@ -66,12 +66,23 @@ def stmt_to_formula(s: Statement) -> Formula:
         return Atom(Pred("nl_"+(s.text[:20].strip().replace(" ","_") or "stmt"), 0), [])
 
     # 2) Apply quantifiers from s.quantifiers (outermost first)
-    # Supports either objects {"kind":"forall","vars":["X"]} or simple strings
+    # Supports both soft format {"kind":"forall","vars":["X"]} and
+    # strict format {"kind":"forall","var":"X"} as well as Quantifier objects
     qs = getattr(s, "quantifiers", None) or []
     for q in reversed(qs):  # wrap inside-out: last listed is innermost
         if isinstance(q, dict):
             kind = q.get("kind")
-            vars_ = q.get("vars") or []
+            # Handle both "var" (strict ARGIR) and "vars" (soft format)
+            if "var" in q:
+                vars_ = [q["var"]]
+            elif "vars" in q:
+                vars_ = q.get("vars", [])
+            else:
+                vars_ = []
+        elif hasattr(q, "kind") and hasattr(q, "var"):
+            # Handle Quantifier objects from strict ARGIR
+            kind = q.kind
+            vars_ = [q.var]
         else:
             # Accept "forall X", "exists X" as a fallback
             parts = str(q).split()
@@ -154,13 +165,20 @@ def _stmt_is_0ary(s: Statement) -> bool:
 def choose_goal_node(u: ARGIR, goal_id: Optional[str] = None) -> Optional[str]:
     """Choose goal node with improved heuristics:
     1. Use explicit goal_id if provided
-    2. Prefer conclusions with variables (quantified forms)
-    3. De-prioritize 0-arity "macro" predicates
-    4. Find nodes that are not referenced as premises (inference sinks)
-    5. Prefer nodes with more complex derivations (have premises)
+    2. Check metadata.goal_id from LLM
+    3. Prefer conclusions with variables (quantified forms)
+    4. De-prioritize 0-arity "macro" predicates
+    5. Find nodes that are not referenced as premises (inference sinks)
+    6. Prefer nodes with more complex derivations (have premises)
     """
     if goal_id:
         return goal_id
+
+    # Check if LLM provided a goal_id in metadata
+    if hasattr(u, 'metadata') and isinstance(u.metadata, dict):
+        llm_goal = u.metadata.get('goal_id')
+        if llm_goal:
+            return llm_goal
 
     # Find nodes referenced as premises
     ref_targets = set()
