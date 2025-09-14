@@ -30,12 +30,14 @@ def _assign_ids(nodes: List[SoftNode]) -> Dict[str, str]:
 def _canon_stmt(stmt: SoftStatement, at: AtomTable) -> Tuple[str, int, dict]:
     pred = at.propose(stmt.pred, observed_arity=len(stmt.args))
     # Convert to ARGIR statement format with atoms
+    # Args must be Term objects with kind and name fields
+    args = [{"kind": "Const", "name": t.value} for t in stmt.args]
     obj = {
         "kind": "Stmt",
         "text": stmt.pred,  # Keep original text for provenance
         "atoms": [{
             "pred": pred,
-            "args": [t.value for t in stmt.args],
+            "args": args,
             "negated": stmt.polarity == "neg"
         }],
         "quantifiers": [],
@@ -93,6 +95,40 @@ def compile_soft_ir(soft: SoftIR, *, existing_atoms: AtomTable | None = None) ->
             hard["rationale"] = n.rationale
         hard_nodes.append(hard)
 
+    # Auto-synthesize implicit rules for nodes with premises+conclusion but no rule
+    implicit_rules = []
+    for node in hard_nodes:
+        if (node.get("premises") and node.get("conclusion") and
+            not node.get("rule") and
+            not any(p.get("kind") == "Ref" for p in node.get("premises", []) if isinstance(p, dict))):
+            # This node needs an implicit rule
+            rule_id = f"IR_{node['id']}"  # Implicit Rule for node
+
+            # Extract antecedents from premises (only Statements, not Refs)
+            antecedents = [p for p in node["premises"] if isinstance(p, dict) and p.get("kind") == "Stmt"]
+
+            # Create implicit rule node
+            implicit_rule = {
+                "id": rule_id,
+                "premises": [],
+                "rule": {
+                    "name": "implicit_inference",
+                    "strict": False,  # Default to defeasible
+                    "antecedents": antecedents,
+                    "consequents": [node["conclusion"]],
+                    "exceptions": [],
+                    "scheme": "Implicit inference"
+                },
+                "rationale": f"Implicit rule for inference in node {node['id']}"
+            }
+            implicit_rules.append(implicit_rule)
+
+            # Update the original node to reference this rule
+            node["premises"].insert(0, {"kind": "Ref", "ref": rule_id})
+
+    # Add implicit rules to nodes
+    hard_nodes.extend(implicit_rules)
+
     # Build hard edges with remapped ids
     hard_edges = [{"source": idmap.get(e.source, e.source),
                    "target": idmap.get(e.target, e.target),
@@ -108,7 +144,8 @@ def compile_soft_ir(soft: SoftIR, *, existing_atoms: AtomTable | None = None) ->
         "graph": {"nodes": hard_nodes, "edges": hard_edges},
         "metadata": {
             # Provide lexicon deterministically to satisfy the contract
-            "atom_lexicon": at.to_lexicon()
+            "atom_lexicon": at.to_lexicon(),
+            "implicit_rules_synthesized": len(implicit_rules) > 0
         }
     }
 

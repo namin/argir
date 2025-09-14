@@ -55,19 +55,73 @@ def premise_to_statement(p, id2node) -> Statement:
     return p
 
 def choose_goal_node(u: ARGIR, goal_id: Optional[str] = None) -> Optional[str]:
+    """Choose goal node with improved heuristics:
+    1. Use explicit goal_id if provided
+    2. Find nodes that are not referenced as premises (inference sinks)
+    3. Prefer nodes that are attack sinks (no outgoing attacks)
+    4. Prefer nodes with more complex derivations (have premises)
+    """
     if goal_id:
         return goal_id
+
+    # Find nodes referenced as premises
     ref_targets = set()
     for n in u.graph.nodes:
         for p in n.premises:
             if isinstance(p, NodeRef):
                 ref_targets.add(p.ref)
-    primary = [n for n in u.graph.nodes if n.conclusion and n.premises and n.id not in ref_targets]
+
+    # Find nodes that are sources of attacks
+    attack_sources = set()
+    attack_targets = set()
+    for e in u.graph.edges:
+        if e.kind == "attack":
+            attack_sources.add(e.source)
+            attack_targets.add(e.target)
+
+    # Primary candidates: conclusions not referenced as premises
+    primary = [n for n in u.graph.nodes
+              if n.conclusion and n.premises
+              and n.id not in ref_targets]
+
+    # If only one, that's our goal
     if len(primary) == 1:
         return primary[0].id
-    secondary = [n for n in u.graph.nodes if n.conclusion and n.id not in ref_targets]
-    if len(secondary) == 1:
-        return secondary[0].id
+
+    # If multiple, prefer:
+    # 1. Nodes with negated conclusions (often "should NOT" statements)
+    # 2. Nodes that are not attack sources (defensive positions)
+    # 3. Nodes with more complex derivations (more premises)
+    if primary:
+        # Check for negated conclusions (final "should NOT" statements)
+        negated = [n for n in primary
+                  if n.conclusion.atoms and n.conclusion.atoms[0].negated]
+        if len(negated) == 1:
+            return negated[0].id
+
+        # Prefer non-attackers
+        non_attackers = [n for n in primary if n.id not in attack_sources]
+        if len(non_attackers) == 1:
+            return non_attackers[0].id
+
+        # Pick the one with most premises (most complex)
+        candidates = negated if negated else (non_attackers if non_attackers else primary)
+        return max(candidates, key=lambda n: len(n.premises)).id
+
+    # Secondary: any conclusion not referenced as premise
+    secondary = [n for n in u.graph.nodes
+                if n.conclusion
+                and n.id not in ref_targets]
+    if secondary:
+        # Apply same preference for negated conclusions
+        negated = [n for n in secondary
+                  if n.conclusion.atoms and n.conclusion.atoms[0].negated]
+        if len(negated) == 1:
+            return negated[0].id
+
+        # Pick most complex
+        return max(secondary, key=lambda n: len(n.premises) if n.premises else 0).id
+
     return None
 
 def argir_to_fof(u: ARGIR, *, fol_mode: str = "classical", goal_id: Optional[str] = None) -> List[Tuple[str,str]]:
