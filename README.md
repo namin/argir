@@ -70,7 +70,21 @@ python -m argir.cli examples/sample.txt --out out --defeasible-fol
 # Optional: choose a specific goal to prove in FOL (by node id)
 # First run without --goal to see node IDs in report.md, then use one like:
 python -m argir.cli examples/sample.txt --out out --goal C1
+
+# Optional: use soft IR extraction with deterministic canonicalization
+# This is more robust than the default strict one-shot extraction
+python -m argir.cli examples/sample.txt --out out --soft
+
+# Optional: try multiple samples with soft extraction (picks best)
+python -m argir.cli examples/sample.txt --out out --soft --k-samples 3
 ```
+
+**CLI Options**:
+- `--defeasible-fol` — Export FOL with exceptions as negated conditions
+- `--goal NODE_ID` — Force specific node as FOL conjecture
+- `--soft` — Use two-stage soft IR extraction (more robust)
+- `--k-samples N` — Try N soft IR samples, pick best (default: 1, only with --soft)
+- `--strict-fail` — Exit with error on validation issues (for CI/CD)
 
 **Outputs written to `--out`**:
 - `report.md` — human‑readable report (nodes, edges, findings, AF semantics, FOL)
@@ -114,10 +128,15 @@ See `WEB.md` for detailed usage instructions.
 ## 5) Programmatic Usage
 
 ```python
-from argir.pipeline import run_pipeline
+from argir.pipeline import run_pipeline, run_pipeline_soft
 
 text = "If it rains, the streets get wet. It is raining. So, the streets will get wet."
+
+# Standard strict pipeline (one-shot extraction)
 res = run_pipeline(text, fol_mode="classical", goal_id=None)
+
+# Soft pipeline (two-stage: soft IR → canonicalization → strict ARGIR)
+res = run_pipeline_soft(text, fol_mode="classical", goal_id=None, k_samples=3)
 
 print(res["report_md"])   # markdown report
 print(res["fof"])         # list of TPTP lines
@@ -126,12 +145,44 @@ print(res["argir"])       # canonical JSON-safe dict of the ARGIR
 
 - `fol_mode`: `"classical"` or `"defeasible"`
 - `goal_id`: force the FOL conjecture to a specific node id
+- `k_samples`: (soft pipeline only) number of extraction attempts, picks best
 
-**Auto‑goal selection**: if there is exactly one **inference node** (has premises + conclusion) that isn’t referenced by others, ARGIR emits `fof(goal, conjecture, …)` automatically. Otherwise, use `--goal`.
+**Auto‑goal selection**: if there is exactly one **inference node** (has premises + conclusion) that isn't referenced by others, ARGIR emits `fof(goal, conjecture, …)` automatically. Otherwise, use `--goal`.
 
 ---
 
-## 6) The ARGIR Contract (What the LLM must produce)
+## 6) Soft Pipeline (Recommended)
+
+The **soft pipeline** (`--soft` flag) is a more robust two-stage approach that addresses the brittleness of one-shot ARGIR generation:
+
+**Stage 1: Soft Extraction (LLM)**
+- LLM produces a permissive "Soft IR" format
+- No canonical predicates required
+- Simple predicate names allowed (e.g., "raining", "streets_wet")
+- Flexible node IDs and references
+
+**Stage 2: Canonicalization & Compilation (Deterministic)**
+- Automatically normalizes predicates (lowercase, underscores, strip articles)
+- Builds `atom_lexicon` from usage
+- Assigns stable node IDs (R1, C1, P1)
+- Validates and auto-repairs common issues
+- Produces strict ARGIR satisfying all contracts
+
+**Benefits**:
+- **Higher success rate** — LLM focuses on semantics, not syntax
+- **Deterministic canonicalization** — Consistent predicates across runs
+- **Best-of-k selection** — Try multiple samples, pick the one with fewest errors
+- **Graceful error handling** — Auto-repairs missing lexicon entries, dangling refs
+
+**When to use**:
+- Complex arguments with many predicates
+- When the standard pipeline fails with lexicon errors
+- Production systems requiring robustness
+- Experimenting with different LLM models
+
+---
+
+## 7) The ARGIR Contract (Strict Mode)
 
 ARGIR is strict on atoms to make FOL sound and comparable.
 
@@ -155,7 +206,7 @@ ARGIR is strict on atoms to make FOL sound and comparable.
 
 ---
 
-## 7) AF & FOL
+## 8) AF & FOL
 
 - **AF projection**: every node is an argument; attack edges become `att(a,b)`; support is not encoded in APX (kept in the graph for coherence checks).
 
@@ -180,7 +231,7 @@ ARGIR is strict on atoms to make FOL sound and comparable.
 
 ---
 
-## 8) Troubleshooting
+## 9) Troubleshooting
 
 - **`LLMNotConfigured`**  
   Set either `GEMINI_API_KEY` or `GOOGLE_CLOUD_PROJECT` (+ `GOOGLE_CLOUD_LOCATION`).

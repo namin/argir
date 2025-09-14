@@ -55,49 +55,148 @@ def premise_to_statement(p, id2node) -> Statement:
     return p
 
 def choose_goal_node(u: ARGIR, goal_id: Optional[str] = None) -> Optional[str]:
+    """Choose goal node with improved heuristics:
+    1. Use explicit goal_id if provided
+    2. Find nodes that are not referenced as premises (inference sinks)
+    3. Prefer nodes that are attack sinks (no outgoing attacks)
+    4. Prefer nodes with more complex derivations (have premises)
+    """
     if goal_id:
         return goal_id
+
+    # Find nodes referenced as premises
     ref_targets = set()
     for n in u.graph.nodes:
         for p in n.premises:
             if isinstance(p, NodeRef):
                 ref_targets.add(p.ref)
-    primary = [n for n in u.graph.nodes if n.conclusion and n.premises and n.id not in ref_targets]
+
+    # Find nodes that are sources of attacks
+    attack_sources = set()
+    attack_targets = set()
+    for e in u.graph.edges:
+        if e.kind == "attack":
+            attack_sources.add(e.source)
+            attack_targets.add(e.target)
+
+    # Primary candidates: conclusions not referenced as premises
+    primary = [n for n in u.graph.nodes
+              if n.conclusion and n.premises
+              and n.id not in ref_targets]
+
+    # If only one, that's our goal
     if len(primary) == 1:
         return primary[0].id
-    secondary = [n for n in u.graph.nodes if n.conclusion and n.id not in ref_targets]
-    if len(secondary) == 1:
-        return secondary[0].id
+
+    # If multiple, prefer:
+    # 1. Nodes with negated conclusions (often "should NOT" statements)
+    # 2. Nodes that are not attack sources (defensive positions)
+    # 3. Nodes with more complex derivations (more premises)
+    if primary:
+        # Check for negated conclusions (final "should NOT" statements)
+        negated = [n for n in primary
+                  if n.conclusion.atoms and n.conclusion.atoms[0].negated]
+        if len(negated) == 1:
+            return negated[0].id
+
+        # Prefer non-attackers
+        non_attackers = [n for n in primary if n.id not in attack_sources]
+        if len(non_attackers) == 1:
+            return non_attackers[0].id
+
+        # Pick the one with most premises (most complex)
+        candidates = negated if negated else (non_attackers if non_attackers else primary)
+        return max(candidates, key=lambda n: len(n.premises)).id
+
+    # Secondary: any conclusion not referenced as premise
+    secondary = [n for n in u.graph.nodes
+                if n.conclusion
+                and n.id not in ref_targets]
+    if secondary:
+        # Apply same preference for negated conclusions
+        negated = [n for n in secondary
+                  if n.conclusion.atoms and n.conclusion.atoms[0].negated]
+        if len(negated) == 1:
+            return negated[0].id
+
+        # Pick most complex
+        return max(secondary, key=lambda n: len(n.premises) if n.premises else 0).id
+
     return None
 
 def argir_to_fof(u: ARGIR, *, fol_mode: str = "classical", goal_id: Optional[str] = None) -> List[Tuple[str,str]]:
-    from .tptp import fof
+    from .tptp import fof, formula
     out: List[Tuple[str,str]] = []
     id2node = {n.id: n for n in u.graph.nodes}
+
+    # Collect what conclusions are derived
+    concluded_stmts = set()
+    for n in u.graph.nodes:
+        if n.conclusion:
+            # Create a canonical key for the statement
+            concluded_stmts.add(formula(stmt_to_formula(n.conclusion)))
+
+    # Export rules
     for n in u.graph.nodes:
         if n.rule:
             out.append((f"rule_{n.id}", fof(f"rule_{n.id}", "axiom", rule_to_formula(n, fol_mode=fol_mode))))
+
+    # Export premise-only nodes (old behavior)
     for n in u.graph.nodes:
         if not n.rule and not n.conclusion and n.premises:
             for i, p in enumerate(n.premises):
                 if isinstance(p, Statement):
                     out.append((f"prem_{n.id}_{i}", fof(f"prem_{n.id}_{i}", "axiom", stmt_to_formula(p))))
+
+    # Export fact nodes (conclusions without premises)
     for n in u.graph.nodes:
         if not n.rule and not n.premises and n.conclusion:
             out.append((f"fact_{n.id}", fof(f"fact_{n.id}", "axiom", stmt_to_formula(n.conclusion))))
+
+    # NEW: Export orphan premises as facts
+    # These are statement premises that aren't concluded anywhere
+    orphan_facts = set()
+    orphan_counter = 0
+    for n in u.graph.nodes:
+        for p in n.premises:
+            if isinstance(p, Statement):
+                stmt_formula = stmt_to_formula(p)
+                stmt_key = formula(stmt_formula)
+                if stmt_key not in concluded_stmts and stmt_key not in orphan_facts:
+                    orphan_facts.add(stmt_key)
+                    orphan_counter += 1
+                    out.append((f"orphan_fact_{orphan_counter}",
+                              fof(f"orphan_fact_{orphan_counter}", "axiom", stmt_formula)))
+    # Export node links (but skip if the node just references a rule)
     for n in u.graph.nodes:
         if n.conclusion and n.premises:
+            # Check if this node references a rule
+            has_rule_ref = False
+            for p in n.premises:
+                if isinstance(p, NodeRef):
+                    ref_node = id2node.get(p.ref)
+                    if ref_node and ref_node.rule:
+                        has_rule_ref = True
+                        break
+
+            # Skip the link if it references a rule (the rule is already exported)
+            if has_rule_ref:
+                # Just ensure non-rule premises are captured as orphan facts above
+                continue
+
+            # Otherwise, create the link axiom from premises to conclusion
             prem_stmts = [premise_to_statement(p, id2node) for p in n.premises]
             prem_forms: list[Formula] = []
             for s in prem_stmts:
+                # This shouldn't happen anymore but keep as safety
                 if isinstance(s, Statement) and s.text.startswith("<rule:"):
-                    ref_id = s.text[len("<rule:"):-1]
-                    tgt = id2node.get(ref_id)
-                    prem_forms.append(rule_to_formula(tgt, fol_mode=fol_mode) if tgt else Atom(Pred("nl_missing_rule_"+ref_id, 0), []))
+                    continue  # Skip rule refs
                 else:
                     prem_forms.append(stmt_to_formula(s))
-            prem = _conj(prem_forms) if len(prem_forms)>1 else prem_forms[0]
-            out.append((f"node_{n.id}_link", fof(f"node_{n.id}_link", "axiom", Implies(prem, stmt_to_formula(n.conclusion)))))
+
+            if prem_forms:  # Only create link if we have actual premises
+                prem = _conj(prem_forms) if len(prem_forms)>1 else prem_forms[0]
+                out.append((f"node_{n.id}_link", fof(f"node_{n.id}_link", "axiom", Implies(prem, stmt_to_formula(n.conclusion)))))
     chosen = choose_goal_node(u, goal_id=goal_id)
     if chosen:
         g = id2node.get(chosen)

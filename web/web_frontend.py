@@ -7,7 +7,7 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from argir.pipeline import run_pipeline
+from argir.pipeline import run_pipeline, run_pipeline_soft
 import argir as _argir_pkg
 
 app = Flask(__name__)
@@ -26,6 +26,8 @@ def process_text():
         text = request.form.get('text', '').strip()
         defeasible_fol = request.form.get('defeasible_fol') == 'on'
         goal_id = request.form.get('goal_id', '').strip() or None
+        use_soft = request.form.get('use_soft') == 'on'
+        k_samples = int(request.form.get('k_samples', '1'))
 
         if not text:
             flash('Please enter some text to analyze.', 'error')
@@ -33,10 +35,25 @@ def process_text():
 
         # Run the pipeline
         fol_mode = "defeasible" if defeasible_fol else "classical"
-        result = run_pipeline(text, fol_mode=fol_mode, goal_id=goal_id)
+        if use_soft:
+            result = run_pipeline_soft(text, fol_mode=fol_mode, goal_id=goal_id, k_samples=k_samples)
+        else:
+            result = run_pipeline(text, fol_mode=fol_mode, goal_id=goal_id)
 
         # Show validation issues as warnings if present
-        if result.get('validation_issues'):
+        if use_soft and result.get('soft_validation'):
+            validation_report = result['soft_validation']
+            if hasattr(validation_report, 'errors') and validation_report.errors():
+                error_msg = "❌ Soft IR validation errors:\n"
+                for issue in validation_report.errors():
+                    error_msg += f"• [{issue.code}] {issue.path}: {issue.message}\n"
+                flash(error_msg, 'error')
+            if hasattr(validation_report, 'warn') and validation_report.warn():
+                warning_msg = "⚠️ Soft IR validation warnings:\n"
+                for issue in validation_report.warn():
+                    warning_msg += f"• [{issue.code}] {issue.path}: {issue.message}\n"
+                flash(warning_msg, 'warning')
+        elif result.get('validation_issues'):
             warning_msg = "⚠️ Validation issues detected:\n"
             for issue in result['validation_issues']:
                 warning_msg += f"• Node '{issue['node']}': {issue['message']}\n"
@@ -49,6 +66,8 @@ def process_text():
                              result=result,
                              fol_mode=fol_mode,
                              goal_id=goal_id,
+                             use_soft=use_soft,
+                             k_samples=k_samples,
                              version=_argir_pkg.__version__)
     except Exception as e:
         flash(f'Error processing text: {str(e)}', 'error')
@@ -68,8 +87,13 @@ def api_process():
 
         fol_mode = data.get('fol_mode', 'classical')
         goal_id = data.get('goal_id')
+        use_soft = data.get('use_soft', False)
+        k_samples = data.get('k_samples', 1)
 
-        result = run_pipeline(text, fol_mode=fol_mode, goal_id=goal_id)
+        if use_soft:
+            result = run_pipeline_soft(text, fol_mode=fol_mode, goal_id=goal_id, k_samples=k_samples)
+        else:
+            result = run_pipeline(text, fol_mode=fol_mode, goal_id=goal_id)
 
         # Include validation issues in response if present
         response = {
