@@ -67,7 +67,12 @@ def run_pipeline_soft(text: str, fol_mode: str = "classical", goal_id: Optional[
     for i in range(k_samples):
         try:
             # Call LLM for soft extraction
-            response = llm(system_prompt, user_prompt)
+            # Add sample index to user prompt when k > 1 to bypass cache
+            if k_samples > 1:
+                indexed_user_prompt = f"{user_prompt}\n<!-- Sample {i+1}/{k_samples} -->"
+            else:
+                indexed_user_prompt = user_prompt
+            response = llm(system_prompt, indexed_user_prompt)
 
             # Parse response as JSON
             if isinstance(response, str):
