@@ -138,6 +138,18 @@ function App() {
           placeholder="Gemini API Key (optional)"
           className="api-key-input"
         />
+        <a
+          href="https://github.com/namin/argir"
+          target="_blank"
+          rel="noreferrer"
+          style={{ marginLeft: '1rem', display: 'flex', alignItems: 'center' }}
+        >
+          <img
+            src="/github-mark.png"
+            alt="GitHub"
+            style={{ width: 24, height: 24 }}
+          />
+        </a>
       </header>
 
       <main className="main">
