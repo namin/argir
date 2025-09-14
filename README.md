@@ -17,11 +17,15 @@ This README covers setup, CLI usage, LLM configuration, generated outputs, testi
 You can run the package straight from source (no build needed).
 
 ```bash
-# Dependencies (Python 3.9+)
-pip install "pydantic>=2.0" google-genai
-# Optional: joblib (for prompt/response caching), eprover (for proof search)
-pip install joblib
-# eprover is a native binary; install it via your package manager if you want proofs
+# Core dependencies (Python 3.9+)
+pip install "pydantic>=2.0" google-genai clingo joblib
+
+# System dependencies (optional):
+# - eprover: FOL theorem prover (install via package manager, e.g., apt/brew)
+
+# Note on dependencies:
+# - clingo: ASP solver for computing argumentation framework semantics
+# - joblib: Caching library for LLM responses (reduces API calls and costs)
 ```
 
 ---
@@ -64,15 +68,18 @@ python -m argir.cli examples/sample.txt --out out
 python -m argir.cli examples/sample.txt --out out --defeasible-fol
 
 # Optional: choose a specific goal to prove in FOL (by node id)
-python -m argir.cli examples/sample.txt --out out --goal conclusion_1
+# First run without --goal to see node IDs in report.md, then use one like:
+python -m argir.cli examples/sample.txt --out out --goal C1
 ```
 
 **Outputs written to `--out`**:
-- `report.md` — human‑readable report (nodes, edges, findings, AF, FOL)
+- `report.md` — human‑readable report (nodes, edges, findings, AF semantics, FOL)
 - `argir.json` — canonical ARGIR object (strictly validated)
 - `fof.p` — TPTP FOF axioms + (optional) conjecture
 - `draft.json` — raw LLM JSON (for debugging)
 - `fol_summary.json` — E‑prover summary (if `eprover` is installed)
+
+The **AF Semantics** section in `report.md` shows accepted arguments under different semantics (grounded, preferred, stable) computed via clingo
 
 ---
 
@@ -152,6 +159,12 @@ ARGIR is strict on atoms to make FOL sound and comparable.
 
 - **AF projection**: every node is an argument; attack edges become `att(a,b)`; support is not encoded in APX (kept in the graph for coherence checks).
 
+- **AF Semantics computation**: ARGIR uses **clingo** (Answer Set Programming solver) to compute standard Dung semantics:
+  - **Grounded**: the minimal complete extension
+  - **Preferred**: maximal admissible sets
+  - **Stable**: extensions that attack all outside arguments
+  - Results appear in `report.md` under "AF Semantics" section with accepted arguments
+
 - **FOL lowering** (TPTP FOF):
   - Always emits:
     - **Rule axioms** for rule nodes (antecedents ⇒ consequents).
@@ -162,32 +175,12 @@ ARGIR is strict on atoms to make FOL sound and comparable.
 - **Goal selection**:
   - If exactly one inference node is unreferenced → auto `fof(goal, conjecture, …)`.
   - Otherwise, supply `--goal NODE_ID` to force a conjecture.
+  - To find node IDs: run once without `--goal`, check `report.md` for node IDs (e.g., C1, R1, P1)
+  - The auto-selected goal (if any) appears in `metadata.goal_candidate_id` in `argir.json`
 
 ---
 
-## 8) Testing
-
-A separate test suite (natural‑language + fixtures) is available.
-
-**Deterministic (fixtures only):**
-
-```bash
-# Run with fixtures (no LLM calls)
-ARGIR_TEST_MODE=fixtures python -m unittest tests/test_suite.py -v
-# or use the provided run_tests.py in the suite repo
-```
-
-**LLM mode:**
-
-```bash
-python -m unittest tests/test_suite.py -v
-```
-
-The suite checks: canonical atoms, reference‑aware coherence, defeasible lowering, APX, cycles, and strict lexicon errors.
-
----
-
-## 9) Troubleshooting
+## 8) Troubleshooting
 
 - **`LLMNotConfigured`**  
   Set either `GEMINI_API_KEY` or `GOOGLE_CLOUD_PROJECT` (+ `GOOGLE_CLOUD_LOCATION`).
@@ -201,9 +194,9 @@ The suite checks: canonical atoms, reference‑aware coherence, defeasible lower
 - **No `fof(goal, ...)` emitted**  
   Multiple candidate conclusions. Use `--goal NODE_ID`.
 
-- **E‑prover “not found”**  
+- **E‑prover "not found"**
   Install eprover (optional). The rest of the pipeline still works.
 
-- **Version/path confusion**  
+- **Version/path confusion**
   Use `python -m argir.cli -V` to see the active package path and version.
 
