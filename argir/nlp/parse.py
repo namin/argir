@@ -49,9 +49,16 @@ HARD CONSTRAINTS (must hold in the final JSON):
    5.1 Every conclusion with atoms must be paraphrasable from source_text.
    5.2 If you add an "implicit claim" node (IC…), it MUST also carry atoms and be connected by an edge.
 
-6) Optional but recommended
-   6.1 metadata.conflicts: list of contradictory predicate pairs (e.g., ["should_close","should_not_close_due_to_fear"]).
-   6.2 Suggest a single goal candidate id if there is a unique derived conclusion.
+6) Variables for universal statements
+   6.1 For universal rules, use variables (X, Y, Z, W, U, V with optional digits):
+       - "All S are P" → rule with antecedent: S(X), consequent: P(X)
+       - Variables are {"kind":"Var","name":"X"} in args
+   6.2 Avoid 0-arity predicates for generalizations
+   6.3 Variables: uppercase single letters with optional digits (X, Y, Z, X1, Y2, etc.)
+
+7) Optional but recommended
+   7.1 metadata.conflicts: list of contradictory predicate pairs (e.g., ["should_close","should_not_close_due_to_fear"]).
+   7.2 Suggest a single goal candidate id if there is a unique derived conclusion.
 
 SELF-CHECK before emitting JSON (redo/fix if any fail):
 - All ids in edges exist in nodes.
