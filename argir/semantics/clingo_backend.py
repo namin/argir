@@ -1,11 +1,6 @@
 import re
 from typing import Dict, List, Any, Set, Tuple
-
-try:
-    from . import af_clingo
-    CLINGO_AVAILABLE = True
-except ImportError:
-    CLINGO_AVAILABLE = False
+from . import af_clingo
 
 def parse_apx_text(apx_text: str) -> Tuple[List[str], Set[Tuple[str, str]]]:
     """Parse APX text to extract arguments and attacks."""
@@ -44,10 +39,6 @@ def parse_apx_text(apx_text: str) -> Tuple[List[str], Set[Tuple[str, str]]]:
 
 def solve_apx(apx_text: str, semantics: str = 'preferred') -> Dict[str, Any]:
     """Solve APX using af_clingo module."""
-
-    if not CLINGO_AVAILABLE:
-        return {'semantics': semantics, 'apx': apx_text, 'error': 'af_clingo module not available'}
-
     try:
         # Parse APX text
         arguments, attacks = parse_apx_text(apx_text)

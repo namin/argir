@@ -7,27 +7,11 @@ class LLMConfigurationError(Exception): ...
 class LLMNotConfigured(LLMConfigurationError): ...
 class LLMCallError(RuntimeError): ...
 
-CACHE_LLM = os.getenv("CACHE_LLM") is not None
-if CACHE_LLM:
-    try:
-        from joblib import Memory  # type: ignore
-        _HAVE_JOBLIB = True
-    except Exception:
-        _HAVE_JOBLIB = False
-        Memory = None  # type: ignore
-else:
-    _HAVE_JOBLIB = False
-    Memory = None  # type: ignore
+from joblib import Memory  # type: ignore
+from google import genai  # type: ignore
+from google.genai import types  # type: ignore
 
-_HAVE_GENAI = False
-try:
-    from google import genai  # type: ignore
-    from google.genai import types  # type: ignore
-    _HAVE_GENAI = True
-except Exception:
-    _HAVE_GENAI = False
-    genai = None  # type: ignore
-    types = None  # type: ignore
+CACHE_LLM = os.getenv("CACHE_LLM") is not None
 
 LLM_MODEL = os.getenv("LLM_MODEL", "gemini-2.5-flash")
 _GOOGLE_LOCATION_DEFAULT = os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
@@ -35,7 +19,7 @@ _GOOGLE_LOCATION_DEFAULT = os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
 _request_api_key: ContextVar[Optional[str]] = ContextVar('request_api_key', default=None)
 
 _memory = None
-if _HAVE_JOBLIB and CACHE_LLM:
+if CACHE_LLM:
     _memory = Memory(os.path.expanduser(os.getenv("LLM_CACHE_DIR", ".cache/llm")), verbose=0)
 
 def set_request_api_key(api_key: Optional[str]) -> None:
@@ -49,9 +33,6 @@ def init_llm_client(api_key: Optional[str] = None,
                     project: Optional[str] = None,
                     location: Optional[str] = None,
                     required: bool = True):
-    if not _HAVE_GENAI:
-        if required: raise LLMNotConfigured("google-genai not available. `pip install google-genai`.")
-        return None
     gemini_api_key = api_key or get_request_api_key() or os.getenv("GEMINI_API_KEY")
     google_cloud_project = project or os.getenv("GOOGLE_CLOUD_PROJECT")
     google_cloud_location = location or _GOOGLE_LOCATION_DEFAULT
@@ -79,8 +60,6 @@ def generate_content(client, contents: Union[str, list], config=None, model: str
     return Resp(text)
 
 def generate_json(prompt: str, *, system: Optional[str]=None, temperature: float=0.0, model: str = LLM_MODEL) -> str:
-    if not _HAVE_GENAI:
-        raise LLMNotConfigured("google-genai not installed.")
     client = init_llm_client(required=True)
     combined = f"{system}\n\n{prompt}" if system else prompt
     cfg = types.GenerateContentConfig(temperature=temperature, response_mime_type="application/json") if types else None

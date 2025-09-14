@@ -18,15 +18,14 @@ You can run the package straight from source (no build needed).
 
 ```bash
 # Core dependencies (Python 3.9+)
-pip install "pydantic>=2.0" google-genai clingo
+pip install "pydantic>=2.0" google-genai clingo joblib
 
-# Optional dependencies:
-# - joblib (for prompt/response caching)
-pip install joblib
-
-# System dependencies:
+# System dependencies (optional):
 # - eprover: FOL theorem prover (install via package manager, e.g., apt/brew)
-# - clingo: ASP solver with Python bindings (included above via pip)
+
+# Note on dependencies:
+# - clingo: ASP solver for computing argumentation framework semantics
+# - joblib: Caching library for LLM responses (reduces API calls and costs)
 ```
 
 ---
@@ -216,10 +215,6 @@ The suite checks: canonical atoms, reference‑aware coherence, defeasible lower
 
 - **E‑prover "not found"**
   Install eprover (optional). The rest of the pipeline still works.
-
-- **Clingo import error in AF semantics**
-  Install clingo: `pip install clingo` (or via conda: `conda install -c potassco clingo`).
-  If clingo is not available, AF semantics computation will be skipped but the pipeline continues.
 
 - **Version/path confusion**
   Use `python -m argir.cli -V` to see the active package path and version.
