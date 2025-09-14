@@ -32,7 +32,7 @@ def _vars_in_formula(f: Formula) -> set[str]:
         return _vars_in_atom(f)
     elif isinstance(f, Not):
         return _vars_in_formula(f.sub)
-    elif isinstance(f, And) or isinstance(f, Or) or isinstance(f, Implies) or isinstance(f, Iff):
+    elif isinstance(f, And) or isinstance(f, Or) or isinstance(f, Implies):
         return _vars_in_formula(f.left) | _vars_in_formula(f.right)
     elif isinstance(f, Forall) or isinstance(f, Exists):
         # Variables bound by this quantifier
