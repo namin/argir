@@ -32,7 +32,8 @@ A simple web-based interface for the ARGIR argument analysis pipeline.
 ## Features
 
 - **Simple Interface**: Clean, mobile-responsive web form for text input
-- **All CLI Options**: Support for defeasible FOL mode and goal selection
+- **All CLI Options**: Support for defeasible FOL mode, goal selection, and soft pipeline
+- **Soft Pipeline**: Two-stage extraction for more robust argument analysis
 - **Rich Results**: Human-readable reports, argument graphs, FOL output, and debug info
 - **API Endpoint**: Programmatic access via `/api/process`
 - **Examples**: Built-in example arguments to get started
@@ -42,7 +43,11 @@ A simple web-based interface for the ARGIR argument analysis pipeline.
 ### Web Interface
 
 1. Enter your natural language argument text
-2. Optionally set a goal node ID or enable defeasible FOL mode
+2. Optional settings:
+   - Set a specific goal node ID for FOL conjecture
+   - Enable defeasible FOL mode (exceptions as negated conditions)
+   - Enable soft pipeline for more robust extraction
+   - Set number of samples (1-10) when using soft pipeline
 3. Click "Analyze Arguments" to process
 4. View comprehensive results including:
    - Human-readable analysis report
@@ -56,12 +61,23 @@ A simple web-based interface for the ARGIR argument analysis pipeline.
 Send POST requests to `/api/process`:
 
 ```bash
+# Standard pipeline
 curl -X POST http://localhost:5000/api/process \
   -H "Content-Type: application/json" \
   -d '{
     "text": "If it rains, the streets get wet. It is raining. So, the streets will get wet.",
     "fol_mode": "classical",
     "goal_id": null
+  }'
+
+# Soft pipeline with multiple samples
+curl -X POST http://localhost:5000/api/process \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "If it rains, the streets get wet. It is raining. So, the streets will get wet.",
+    "fol_mode": "classical",
+    "use_soft": true,
+    "k_samples": 3
   }'
 ```
 

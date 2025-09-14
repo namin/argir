@@ -24,7 +24,31 @@
             </div>
         </div>
 
+        <div class="form-group">
+            <div class="checkbox-group">
+                <input type="checkbox" id="use_soft" name="use_soft" onchange="toggleSoftOptions()">
+                <label for="use_soft">Use Soft Pipeline (more robust extraction)</label>
+            </div>
+            <small style="color: #666; font-size: 0.9rem; margin-left: 1.5rem; display: block;">
+                Two-stage extraction: soft IR → canonicalization → strict ARGIR. Recommended for complex arguments.
+            </small>
+        </div>
+
+        <div class="form-group" id="k_samples_group" style="display: none; margin-left: 1.5rem;">
+            <label for="k_samples">Number of samples (soft pipeline only):</label>
+            <input type="number" id="k_samples" name="k_samples" value="1" min="1" max="10">
+            <small style="color: #666; font-size: 0.9rem;">Try multiple extractions and pick the best (1-10).</small>
+        </div>
+
         <button type="submit" class="btn">Analyze Arguments</button>
+
+        <script>
+        function toggleSoftOptions() {
+            const checkbox = document.getElementById('use_soft');
+            const kSamplesGroup = document.getElementById('k_samples_group');
+            kSamplesGroup.style.display = checkbox.checked ? 'block' : 'none';
+        }
+        </script>
     </form>
 </div>
 
