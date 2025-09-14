@@ -5,8 +5,9 @@ import re
 from .soft_ir import SoftIR, SoftNode, SoftStatement, SoftPremiseRef, SoftTerm
 from .canonicalize import AtomTable
 
-# Variable detection pattern - tokens starting with uppercase letter
-VAR_RE = re.compile(r'^[A-Z][A-Za-z0-9_]*$')
+# Variable detection pattern - only specific variable names (X, Y, Z, W, U, V) with optional digits
+# This avoids treating proper nouns (Socrates, USA, AI) as variables
+VAR_RE = re.compile(r'^[XYZWUV]\d*$')  # X, Y, Z, W, U, V + optional digits like X1, Y2
 
 def _assign_ids(nodes: List[SoftNode]) -> Dict[str, str]:
     """Map provisional node ids (or None) to stable IDs (C#, R#, P#).

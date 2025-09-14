@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import List, Tuple, Optional
-from .ast import *
+from .ast import Atom, Pred, Var, Const, Forall, Exists, Not, And, Or, Implies, Formula, Term
 from ..core.model import ARGIR, Statement, NodeRef, InferenceStep
 
 def _to_term(t): return Const(t.name) if t.kind=="Const" else Var(t.name)
@@ -111,7 +111,8 @@ def _stmt_has_vars(s: Statement) -> bool:
 
 def _stmt_is_0ary(s: Statement) -> bool:
     """Check if all atoms in a statement are 0-arity."""
-    return all(len(a.args) == 0 for a in (s.atoms or []))
+    # Guard against empty atom lists (all([]) == True)
+    return bool(s.atoms) and all(len(a.args) == 0 for a in s.atoms)
 
 def choose_goal_node(u: ARGIR, goal_id: Optional[str] = None) -> Optional[str]:
     """Choose goal node with improved heuristics:
@@ -188,7 +189,13 @@ def argir_to_fof(u: ARGIR, *, fol_mode: str = "classical", goal_id: Optional[str
     # Export fact nodes (conclusions without premises)
     for n in u.graph.nodes:
         if not n.rule and not n.premises and n.conclusion:
-            out.append((f"fact_{n.id}", fof(f"fact_{n.id}", "axiom", stmt_to_formula(n.conclusion))))
+            fact_formula = stmt_to_formula(n.conclusion)
+            # Quantify over any free variables in facts
+            fact_vars = _vars_in_stmt(n.conclusion)
+            if fact_vars:
+                # Could either reject or quantify. We'll quantify for lenient mode.
+                fact_formula = _forall_wrap(fact_vars, fact_formula)
+            out.append((f"fact_{n.id}", fof(f"fact_{n.id}", "axiom", fact_formula)))
 
     # NEW: Export orphan premises as facts
     # These are statement premises that aren't concluded anywhere
@@ -202,6 +209,10 @@ def argir_to_fof(u: ARGIR, *, fol_mode: str = "classical", goal_id: Optional[str
                 if stmt_key not in concluded_stmts and stmt_key not in orphan_facts:
                     orphan_facts.add(stmt_key)
                     orphan_counter += 1
+                    # Quantify over any free variables in orphan facts
+                    orphan_vars = _vars_in_stmt(p)
+                    if orphan_vars:
+                        stmt_formula = _forall_wrap(orphan_vars, stmt_formula)
                     out.append((f"orphan_fact_{orphan_counter}",
                               fof(f"orphan_fact_{orphan_counter}", "axiom", stmt_formula)))
     # Export node links (but skip if the node just references a rule)
