@@ -109,7 +109,9 @@ ENCODING = {
 def _solve_models(facts: str, lp: str) -> List[FrozenSet[str]]:
     ctl = clingo.Control(["0"])  # enumerate all (optimal) models
     ctl.configuration.solve.opt_mode = "optN"
-    ctl.add("base", [], facts + "\n" + lp)
+    # Add input predicate declarations to avoid warnings
+    input_decls = "#defined arg/1.\n#defined att/2.\n"
+    ctl.add("base", [], input_decls + facts + "\n" + lp)
     ctl.ground([("base", [])])
     out: List[FrozenSet[str]] = []
     with ctl.solve(yield_=True) as h:
