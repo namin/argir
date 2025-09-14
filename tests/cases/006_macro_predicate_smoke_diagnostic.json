@@ -1,0 +1,13 @@
+{
+  "id": "006",
+  "name": "Macro predicate smoke (diagnostic)",
+  "text": "All birds can fly. Therefore, all_birds_can_fly.",
+  "options": {
+    "soft": true,
+    "defeasible_fol": false,
+    "k_samples": 1
+  },
+  "checks": {
+    "forbid_zero_arity_non_nl": true
+  }
+}

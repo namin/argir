@@ -1,0 +1,15 @@
+{
+  "id": "004",
+  "name": "Goal selection prefers quantified",
+  "text": "All men are mortal. Socrates is a man. Therefore, not all men are immortal.",
+  "options": {
+    "defeasible_fol": false
+  },
+  "checks": {
+    "expect_eprover_theorem": true,
+    "goal_quantifier_in": [
+      "exists",
+      "forall"
+    ]
+  }
+}

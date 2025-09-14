@@ -1,6 +1,7 @@
 # argir/prompts.py
 
-SOFT_EXTRACTION_SYS = """You convert natural language arguments into a Soft IR JSON format.
+SOFT_EXTRACTION_SYS = """You convert natural-language arguments into a SOFT IR JSON format.
+You MUST output ONLY the SOFT schema below. DO NOT use the strict ARGIR schema (no "atoms", no "text" fields in statements).
 
 Output a single JSON object with this structure:
 {
@@ -23,7 +24,7 @@ Output a single JSON object with this structure:
           "consequents": [<Statements>],
           "exceptions": [<Statements>]
         },
-        "conclusion": <Statement>,  // Optional
+        "conclusion": <Statement>,  // Optional; REQUIRED if this node is the goal with kind="conclusion"
         "rationale": "<optional explanation>"
       }
     ],
@@ -36,14 +37,24 @@ Output a single JSON object with this structure:
         "rationale": "<optional>"
       }
     ]
+  },
+  "goal": {                      // REQUIRED: choose exactly one main claim
+    "kind": "conclusion" | "rule",
+    "node_id": "<id>"
+  },
+  "metadata": {
+    "goal_id": "<same as goal.node_id>"   // convenience mirror
   }
 }
 
 Statement format:
 {
-  "pred": "<predicate name>",  // Keep short & contentful (avoid "is", articles)
-  "args": [{"value": "<arg>"}],  // Arguments as simple strings
-  "polarity": "pos" or "neg"  // Default "pos"
+  "pred": "<predicate name>",           // Keep short & contentful (avoid 'is', articles)
+  "args": [{"value": "<arg>"}],         // Simple strings; use X,Y,Z for variables, proper names for constants
+  "polarity": "pos" | "neg",            // Default "pos"
+  "quantifiers": [                      // OPTIONAL; REQUIRED for general (quantified) GOAL conclusions
+    {"kind": "forall" | "exists", "vars": ["X","Y"]}
+  ]
 }
 
 Guidelines:
@@ -54,9 +65,27 @@ Guidelines:
 - Use "attack" edges for counterarguments, exceptions, or rebuttals
 - Use "support" edges for positive relationships between arguments
 - No need for canonical predicate names - we'll canonicalize them automatically
+
+CRITICAL for generalizations and rules:
+- ALWAYS use variables (X, Y, Z; optional digits) for general statements.
+- "All/Every S are P" → make a RULE with antecedent: {"pred":"S", "args":[{"value":"X"}]}, consequent: {"pred":"P", "args":[{"value":"X"}]}.
+- "Some/There exists S that are P" → prefer a conclusion with variables and quantifiers=[{"kind":"exists","vars":["X"]}].
+- "Not all S are P" → prefer a counterexample conclusion with two predicates: S(X) and ~P(X) with quantifiers=[{"kind":"exists","vars":["X"]}].
+- NEVER create 0-arity macro predicates like "all_birds_can_fly" or "not_all_birds_can_fly".
+- Variables start with uppercase letters (X, Y, Z, X1, Y2, ...).
+
+GOAL requirements:
+- You MUST choose exactly one GOAL. Set both goal.node_id and metadata.goal_id to that node's id.
+- If the GOAL is a GENERAL claim (cues: 'all', 'every', 'any', 'no/none', 'not all', 'some', 'there exists'):
+  the GOAL node's CONCLUSION MUST use variables and include quantifiers[] (forall/exists as appropriate).
+- If the GOAL is about an INDIVIDUAL (e.g., 'socrates'), keep it ground (quantifiers[] may be empty).
+
+STRICT FORMAT IS FORBIDDEN IN SOFT MODE:
+- Do NOT output "atoms", "text", or any nested ARGIR strict structures in statements.
+- Use ONLY the simple pred/args format shown above.
 """
 
-SOFT_EXTRACTION_USER_TEMPLATE = """Convert the following text into Soft IR format:
+SOFT_EXTRACTION_USER_TEMPLATE = """Convert the following text into SOFT IR format ONLY:
 
 {text}
 
@@ -64,7 +93,10 @@ Remember to:
 1. Extract the logical structure (premises, conclusions, rules)
 2. Identify support and attack relationships
 3. Use simple predicate names without articles or "is/are"
-4. Output valid JSON matching the schema"""
+4. Choose exactly one GOAL (goal.node_id + metadata.goal_id must point to it)
+5. If the GOAL is general, use variables in its conclusion and add quantifiers[] (forall/exists as appropriate)
+6. NEVER invent 0-arity macro predicates; NEVER use 'atoms' or 'text' keys in statements
+7. Output valid JSON matching the SOFT schema (no strict ARGIR fields)"""
 
 def get_soft_extraction_prompt(text: str) -> tuple[str, str]:
     """Return (system_prompt, user_prompt) for soft extraction."""

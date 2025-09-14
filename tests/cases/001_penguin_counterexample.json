@@ -1,0 +1,23 @@
+{
+  "id": "001",
+  "name": "Penguin counterexample",
+  "text": "All birds can fly. Penguins are birds. Penguins are flightless birds, so they cannot fly. Therefore, not all birds can fly.",
+  "options": {
+    "defeasible_fol": false
+  },
+  "checks": {
+    "expect_eprover_theorem": true,
+    "min_attack_edges": 1,
+    "forbid_zero_arity_non_nl": true,
+    "goal_quantifier_in": [
+      "exists",
+      "forall"
+    ],
+    "fof_must_match": [
+      "!\\s*\\["
+    ],
+    "fof_must_not_match": [
+      "all_birds_can_fly"
+    ]
+  }
+}

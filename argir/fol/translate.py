@@ -1,17 +1,102 @@
 from __future__ import annotations
 from typing import List, Tuple, Optional
-from .ast import *
+import re
+from .ast import Atom, Pred, Var, Const, Forall, Exists, Not, And, Or, Implies, Formula, Term
 from ..core.model import ARGIR, Statement, NodeRef, InferenceStep
 
-def _to_term(t): return Const(t.name) if t.kind=="Const" else Var(t.name)
+# Variable name pattern for salvaging variables in strict mode
+VAR_NAME_RE = re.compile(r'^[XYZWUV]\d*$')  # X, Y, Z, W, U, V with optional digits
+
+def _to_term(t):
+    """Convert term dict to FOL Term, with variable salvage for strict mode."""
+    name = t.name
+    kind = getattr(t, "kind", None) if hasattr(t, "kind") else t.get("kind")
+    # If explicitly marked as Var, or matches our variable pattern, treat as variable
+    if kind == "Var" or VAR_NAME_RE.match(name):
+        return Var(name)
+    return Const(name)
+
 def _to_atom(a): return Atom(Pred(a.pred, len(a.args)), [_to_term(x) for x in a.args], a.negated)
 
+def _vars_in_atom(a: Atom) -> set[str]:
+    """Collect free variables in an atom."""
+    out = set()
+    for t in a.args:
+        if isinstance(t, Var):
+            out.add(t.name)
+    return out
+
+def _vars_in_formula(f: Formula) -> set[str]:
+    """Collect free variables in a formula."""
+    if isinstance(f, Atom):
+        return _vars_in_atom(f)
+    elif isinstance(f, Not):
+        return _vars_in_formula(f.sub)
+    elif isinstance(f, And) or isinstance(f, Or) or isinstance(f, Implies):
+        return _vars_in_formula(f.left) | _vars_in_formula(f.right)
+    elif isinstance(f, Forall) or isinstance(f, Exists):
+        # Variables bound by this quantifier
+        bound_var = f.var.name if isinstance(f.var, Var) else None
+        sub_vars = _vars_in_formula(f.sub)
+        if bound_var:
+            sub_vars.discard(bound_var)
+        return sub_vars
+    return set()
+
+def _vars_in_stmt(s: Statement) -> set[str]:
+    """Collect free variables in a statement."""
+    names = set()
+    for a in (s.atoms or []):
+        names |= _vars_in_atom(_to_atom(a))
+    return names
+
+def _forall_wrap(var_names: set[str], phi: Formula) -> Formula:
+    """Wrap a formula with universal quantifiers for all given variables."""
+    for v in sorted(var_names):
+        phi = Forall(Var(v), phi)
+    return phi
+
 def stmt_to_formula(s: Statement) -> Formula:
+    # 1) Build conjunction of atoms
     if s.atoms:
         phi: Formula = _to_atom(s.atoms[0])
-        for a in s.atoms[1:]: phi = And(phi, _to_atom(a))
-        return phi
-    return Atom(Pred("nl_"+(s.text[:20].strip().replace(" ","_") or "stmt"), 0), [])
+        for a in s.atoms[1:]:
+            phi = And(phi, _to_atom(a))
+    else:
+        return Atom(Pred("nl_"+(s.text[:20].strip().replace(" ","_") or "stmt"), 0), [])
+
+    # 2) Apply quantifiers from s.quantifiers (outermost first)
+    # Supports both soft format {"kind":"forall","vars":["X"]} and
+    # strict format {"kind":"forall","var":"X"} as well as Quantifier objects
+    qs = getattr(s, "quantifiers", None) or []
+    for q in reversed(qs):  # wrap inside-out: last listed is innermost
+        if isinstance(q, dict):
+            kind = q.get("kind")
+            # Handle both "var" (strict ARGIR) and "vars" (soft format)
+            if "var" in q:
+                vars_ = [q["var"]]
+            elif "vars" in q:
+                vars_ = q.get("vars", [])
+            else:
+                vars_ = []
+        elif hasattr(q, "kind") and hasattr(q, "var"):
+            # Handle Quantifier objects from strict ARGIR
+            kind = q.kind
+            vars_ = [q.var]
+        else:
+            # Accept "forall X", "exists X" as a fallback
+            parts = str(q).split()
+            kind = parts[0].lower() if parts else None
+            vars_ = [parts[1]] if len(parts) > 1 else []
+
+        for v in reversed(vars_):
+            if kind == "forall":
+                phi = Forall(Var(v), phi)
+            elif kind == "exists":
+                phi = Exists(Var(v), phi)
+            # else: ignore unknown
+
+    return phi
 
 def _conj(forms: list[Formula]) -> Formula:
     assert len(forms) >= 1
@@ -25,20 +110,33 @@ def rule_to_formula(n: InferenceStep, *, fol_mode: str = "classical") -> Formula
         return Atom(Pred("nl_rule_"+n.id, 0), [])
     ants = [stmt_to_formula(s) for s in (n.rule.antecedents or [])]
     cons = [stmt_to_formula(s) for s in (n.rule.consequents or [])]
+
+    # Collect all free variables from antecedents and consequents
+    all_vars = set()
+    for s in (n.rule.antecedents or []):
+        all_vars |= _vars_in_stmt(s)
+    for s in (n.rule.consequents or []):
+        all_vars |= _vars_in_stmt(s)
+
     if fol_mode == "defeasible" and n.rule.exceptions:
         exc = None
         for s in n.rule.exceptions:
             psi = stmt_to_formula(s)
             exc = psi if exc is None else And(exc, psi)
+            all_vars |= _vars_in_stmt(s)
         if ants and cons:
             ante = _conj(ants + ([Not(exc)] if exc else []))
-            return Implies(ante, _conj(cons) if len(cons)>1 else cons[0])
+            core = Implies(ante, _conj(cons) if len(cons)>1 else cons[0])
+            return _forall_wrap(all_vars, core)
     if ants and cons:
-        return Implies(_conj(ants), _conj(cons) if len(cons)>1 else cons[0])
+        core = Implies(_conj(ants), _conj(cons) if len(cons)>1 else cons[0])
+        return _forall_wrap(all_vars, core)
     if cons:
-        return _conj(cons) if len(cons)>1 else cons[0]
+        core = _conj(cons) if len(cons)>1 else cons[0]
+        return _forall_wrap(all_vars, core)
     if ants:
-        return _conj(ants) if len(ants)>1 else ants[0]
+        core = _conj(ants) if len(ants)>1 else ants[0]
+        return _forall_wrap(all_vars, core)
     return Atom(Pred("nl_rule_"+n.id, 0), [])
 
 def premise_to_statement(p, id2node) -> Statement:
@@ -54,15 +152,33 @@ def premise_to_statement(p, id2node) -> Statement:
         return Statement(text=f"<ref:{p.ref}>")
     return p
 
+def _stmt_has_vars(s: Statement) -> bool:
+    """Check if a statement contains variables."""
+    return any(t.kind == "Var" for a in (s.atoms or []) for t in a.args)
+
+def _stmt_is_0ary(s: Statement) -> bool:
+    """Check if all atoms in a statement are 0-arity."""
+    # Guard against empty atom lists (all([]) == True)
+    return bool(s.atoms) and all(len(a.args) == 0 for a in s.atoms)
+
+
 def choose_goal_node(u: ARGIR, goal_id: Optional[str] = None) -> Optional[str]:
     """Choose goal node with improved heuristics:
     1. Use explicit goal_id if provided
-    2. Find nodes that are not referenced as premises (inference sinks)
-    3. Prefer nodes that are attack sinks (no outgoing attacks)
-    4. Prefer nodes with more complex derivations (have premises)
+    2. Check metadata.goal_id from LLM
+    3. Prefer conclusions with variables (quantified forms)
+    4. De-prioritize 0-arity "macro" predicates
+    5. Find nodes that are not referenced as premises (inference sinks)
+    6. Prefer nodes with more complex derivations (have premises)
     """
     if goal_id:
         return goal_id
+
+    # Check if LLM provided a goal_id in metadata
+    if hasattr(u, 'metadata') and isinstance(u.metadata, dict):
+        llm_goal = u.metadata.get('goal_id')
+        if llm_goal:
+            return llm_goal
 
     # Find nodes referenced as premises
     ref_targets = set()
@@ -71,58 +187,35 @@ def choose_goal_node(u: ARGIR, goal_id: Optional[str] = None) -> Optional[str]:
             if isinstance(p, NodeRef):
                 ref_targets.add(p.ref)
 
-    # Find nodes that are sources of attacks
-    attack_sources = set()
-    attack_targets = set()
-    for e in u.graph.edges:
-        if e.kind == "attack":
-            attack_sources.add(e.source)
-            attack_targets.add(e.target)
+    # Candidates: inference sinks (not referenced), with conclusions
+    candidates = [n for n in u.graph.nodes
+                 if n.conclusion and n.id not in ref_targets]
 
-    # Primary candidates: conclusions not referenced as premises
-    primary = [n for n in u.graph.nodes
-              if n.conclusion and n.premises
-              and n.id not in ref_targets]
+    if not candidates:
+        return None
 
-    # If only one, that's our goal
-    if len(primary) == 1:
-        return primary[0].id
+    # 1) Prefer quantified/variable-bearing conclusions
+    with_vars = [n for n in candidates if _stmt_has_vars(n.conclusion)]
+    if with_vars:
+        # Among those with variables, prefer negated ones (common for "not all ...")
+        neg = [n for n in with_vars if any(a.negated for a in (n.conclusion.atoms or []))]
+        if neg:
+            # Pick the most premise-rich among negated variable-bearing
+            return max(neg, key=lambda n: len(n.premises) if n.premises else 0).id
+        # Otherwise pick the most premise-rich among all variable-bearing
+        return max(with_vars, key=lambda n: len(n.premises) if n.premises else 0).id
 
-    # If multiple, prefer:
-    # 1. Nodes with negated conclusions (often "should NOT" statements)
-    # 2. Nodes that are not attack sources (defensive positions)
-    # 3. Nodes with more complex derivations (more premises)
-    if primary:
-        # Check for negated conclusions (final "should NOT" statements)
-        negated = [n for n in primary
-                  if n.conclusion.atoms and n.conclusion.atoms[0].negated]
-        if len(negated) == 1:
-            return negated[0].id
+    # 2) Otherwise, prefer non-0-arity atoms
+    non_0ary = [n for n in candidates if not _stmt_is_0ary(n.conclusion)]
+    if non_0ary:
+        # Among non-0-arity, prefer negated ones
+        neg = [n for n in non_0ary if any(a.negated for a in (n.conclusion.atoms or []))]
+        if neg:
+            return max(neg, key=lambda n: len(n.premises) if n.premises else 0).id
+        return max(non_0ary, key=lambda n: len(n.premises) if n.premises else 0).id
 
-        # Prefer non-attackers
-        non_attackers = [n for n in primary if n.id not in attack_sources]
-        if len(non_attackers) == 1:
-            return non_attackers[0].id
-
-        # Pick the one with most premises (most complex)
-        candidates = negated if negated else (non_attackers if non_attackers else primary)
-        return max(candidates, key=lambda n: len(n.premises)).id
-
-    # Secondary: any conclusion not referenced as premise
-    secondary = [n for n in u.graph.nodes
-                if n.conclusion
-                and n.id not in ref_targets]
-    if secondary:
-        # Apply same preference for negated conclusions
-        negated = [n for n in secondary
-                  if n.conclusion.atoms and n.conclusion.atoms[0].negated]
-        if len(negated) == 1:
-            return negated[0].id
-
-        # Pick most complex
-        return max(secondary, key=lambda n: len(n.premises) if n.premises else 0).id
-
-    return None
+    # 3) Fallback: most complex (most premises)
+    return max(candidates, key=lambda n: len(n.premises) if n.premises else 0).id
 
 def argir_to_fof(u: ARGIR, *, fol_mode: str = "classical", goal_id: Optional[str] = None) -> List[Tuple[str,str]]:
     from .tptp import fof, formula
@@ -151,7 +244,13 @@ def argir_to_fof(u: ARGIR, *, fol_mode: str = "classical", goal_id: Optional[str
     # Export fact nodes (conclusions without premises)
     for n in u.graph.nodes:
         if not n.rule and not n.premises and n.conclusion:
-            out.append((f"fact_{n.id}", fof(f"fact_{n.id}", "axiom", stmt_to_formula(n.conclusion))))
+            fact_formula = stmt_to_formula(n.conclusion)
+            # Quantify over any free variables in facts
+            fact_vars = _vars_in_stmt(n.conclusion)
+            if fact_vars:
+                # Could either reject or quantify. We'll quantify for lenient mode.
+                fact_formula = _forall_wrap(fact_vars, fact_formula)
+            out.append((f"fact_{n.id}", fof(f"fact_{n.id}", "axiom", fact_formula)))
 
     # NEW: Export orphan premises as facts
     # These are statement premises that aren't concluded anywhere
@@ -165,6 +264,10 @@ def argir_to_fof(u: ARGIR, *, fol_mode: str = "classical", goal_id: Optional[str
                 if stmt_key not in concluded_stmts and stmt_key not in orphan_facts:
                     orphan_facts.add(stmt_key)
                     orphan_counter += 1
+                    # Quantify over any free variables in orphan facts
+                    orphan_vars = _vars_in_stmt(p)
+                    if orphan_vars:
+                        stmt_formula = _forall_wrap(orphan_vars, stmt_formula)
                     out.append((f"orphan_fact_{orphan_counter}",
                               fof(f"orphan_fact_{orphan_counter}", "axiom", stmt_formula)))
     # Export node links (but skip if the node just references a rule)
@@ -196,10 +299,23 @@ def argir_to_fof(u: ARGIR, *, fol_mode: str = "classical", goal_id: Optional[str
 
             if prem_forms:  # Only create link if we have actual premises
                 prem = _conj(prem_forms) if len(prem_forms)>1 else prem_forms[0]
-                out.append((f"node_{n.id}_link", fof(f"node_{n.id}_link", "axiom", Implies(prem, stmt_to_formula(n.conclusion)))))
+                concl = stmt_to_formula(n.conclusion)
+                # Quantify over free variables in premises and conclusion
+                vars_p = set()
+                for s in prem_stmts:
+                    if isinstance(s, Statement):
+                        vars_p |= _vars_in_stmt(s)
+                vars_c = _vars_in_stmt(n.conclusion)
+                core = Implies(prem, concl)
+                core = _forall_wrap(vars_p | vars_c, core)
+                out.append((f"node_{n.id}_link", fof(f"node_{n.id}_link", "axiom", core)))
+    # ---------- Goal ----------
     chosen = choose_goal_node(u, goal_id=goal_id)
     if chosen:
         g = id2node.get(chosen)
         if g and g.conclusion:
             out.append(("goal", fof("goal", "conjecture", stmt_to_formula(g.conclusion))))
+        elif g and g.rule:
+            # If the chosen node has no conclusion but has a rule, use the rule as the goal
+            out.append(("goal", fof("goal", "conjecture", rule_to_formula(g, fol_mode=fol_mode))))
     return out

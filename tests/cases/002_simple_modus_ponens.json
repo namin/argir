@@ -1,0 +1,13 @@
+{
+  "id": "002",
+  "name": "Simple Modus Ponens",
+  "text": "If it rains, the streets get wet. It is raining. So, the streets will get wet.",
+  "options": {
+    "soft": true,
+    "defeasible_fol": false,
+    "k_samples": 1
+  },
+  "checks": {
+    "expect_eprover_theorem": true
+  }
+}

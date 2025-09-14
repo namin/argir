@@ -1,0 +1,18 @@
+{
+  "id": "010",
+  "name": "Multiple counterexamples",
+  "text": "All swans are white. Black swans are swans. Black swans are not white. Therefore, not all swans are white.",
+  "options": {
+    "soft": true,
+    "defeasible_fol": false,
+    "k_samples": 1
+  },
+  "checks": {
+    "expect_eprover_theorem": true,
+    "goal_quantifier_in": [
+      "exists",
+      "forall"
+    ],
+    "min_attack_edges": 1
+  }
+}

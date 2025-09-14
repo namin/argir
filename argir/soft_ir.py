@@ -1,7 +1,7 @@
 # argir/soft_ir.py
 from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import List, Optional, Dict, Literal, Union
+from typing import List, Optional, Dict, Literal, Union, Any
 
 # ---- Soft IR types (easy for LLM to emit) ----
 
@@ -25,6 +25,7 @@ class SoftStatement:
     args: List[SoftTerm]      # e.g., ["Paris"]
     polarity: Literal["pos","neg"] = "pos"
     span: Optional[SoftSpan] = None
+    quantifiers: Optional[List[Any]] = None  # Optional quantifiers for goals
 
 @dataclass
 class SoftRule:
@@ -70,3 +71,4 @@ class SoftIR:
     graph: SoftGraph
     # LLM can omit canonical lexicon here (we'll build it deterministically)
     metadata: Dict[str, dict] = field(default_factory=dict)
+    goal: Optional[Dict[str, str]] = None  # Optional goal specification

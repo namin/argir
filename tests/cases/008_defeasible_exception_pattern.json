@@ -1,0 +1,14 @@
+{
+  "id": "008",
+  "name": "Defeasible exception pattern",
+  "text": "Normally, birds can fly. Ostriches are birds. Ostriches cannot fly. Therefore, not all birds can fly.",
+  "options": {
+    "soft": true,
+    "defeasible_fol": true,
+    "k_samples": 1
+  },
+  "checks": {
+    "expect_eprover_theorem": true,
+    "min_attack_edges": 1
+  }
+}
