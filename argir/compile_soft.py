@@ -1,8 +1,12 @@
 # argir/compile_soft.py
 from __future__ import annotations
 from typing import Dict, List, Tuple
+import re
 from .soft_ir import SoftIR, SoftNode, SoftStatement, SoftPremiseRef, SoftTerm
 from .canonicalize import AtomTable
+
+# Variable detection pattern - tokens starting with uppercase letter
+VAR_RE = re.compile(r'^[A-Z][A-Za-z0-9_]*$')
 
 def _assign_ids(nodes: List[SoftNode]) -> Dict[str, str]:
     """Map provisional node ids (or None) to stable IDs (C#, R#, P#).
@@ -27,13 +31,19 @@ def _assign_ids(nodes: List[SoftNode]) -> Dict[str, str]:
             n.id = f"_anon_{id(n)}"
     return mapping
 
+def _mk_term(token: str) -> dict:
+    """Create a term dict, detecting variables vs constants."""
+    if VAR_RE.match(token):
+        return {"kind": "Var", "name": token}
+    return {"kind": "Const", "name": token}
+
 def _canon_stmt(stmt: SoftStatement, at: AtomTable) -> Tuple[str, int, dict]:
     pred, extracted_entities = at.propose(stmt.pred, observed_arity=len(stmt.args))
     # Convert to ARGIR statement format with atoms
-    # Args must be Term objects with kind and name fields
-    args = [{"kind": "Const", "name": t.value} for t in stmt.args]
+    # Args must be Term objects with kind and name fields - now preserving variables
+    args = [_mk_term(t.value) for t in stmt.args]
 
-    # Prepend extracted entities as arguments
+    # Prepend extracted entities as arguments (always constants)
     if extracted_entities:
         entity_args = [{"kind": "Const", "name": e} for e in extracted_entities]
         args = entity_args + args
@@ -46,7 +56,7 @@ def _canon_stmt(stmt: SoftStatement, at: AtomTable) -> Tuple[str, int, dict]:
             "args": args,
             "negated": stmt.polarity == "neg"
         }],
-        "quantifiers": [],
+        "quantifiers": [],  # Will be quantified at FOL-lowering time
         "span": None,
         "rationale": None,
         "confidence": None

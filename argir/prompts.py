@@ -54,6 +54,14 @@ Guidelines:
 - Use "attack" edges for counterarguments, exceptions, or rebuttals
 - Use "support" edges for positive relationships between arguments
 - No need for canonical predicate names - we'll canonicalize them automatically
+
+CRITICAL for generalizations and rules:
+- ALWAYS use variables (X, Y, Z) for universal statements
+- "All S P" → antecedent: S(X), consequent: P(X) - use uppercase letters as variables
+- "Some S P" → use specific instance or existential claim
+- "No S P" / "Not all S P" → produce counterexample OR negated rule
+- NEVER create 0-arity predicates like "all_birds_can_fly" - always use variables
+- Variables start with uppercase letters (X, Y, Z, X1, Y2, etc.)
 """
 
 SOFT_EXTRACTION_USER_TEMPLATE = """Convert the following text into Soft IR format:
@@ -64,7 +72,8 @@ Remember to:
 1. Extract the logical structure (premises, conclusions, rules)
 2. Identify support and attack relationships
 3. Use simple predicate names without articles or "is/are"
-4. Output valid JSON matching the schema"""
+4. Use VARIABLES (X, Y, Z) for generalizations, NOT 0-arity macros
+5. Output valid JSON matching the schema"""
 
 def get_soft_extraction_prompt(text: str) -> tuple[str, str]:
     """Return (system_prompt, user_prompt) for soft extraction."""
