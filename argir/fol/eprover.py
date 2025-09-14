@@ -13,4 +13,14 @@ def call_eprover(fof_lines: List[str], *, time_limit: int=3) -> Dict[str, Any]:
         except subprocess.TimeoutExpired:
             return {"tool":"eprover","available":True,"unsat":False,"sat":False,"note":"timeout","raw":""}
     txt = out.stdout or out.stderr
-    return {"tool":"eprover","available":True,"unsat":"SZS status Unsatisfiable" in txt,"sat":"SZS status Satisfiable" in txt,"raw":txt}
+    # Check for theorem proving status (conjecture proved)
+    theorem_proved = "SZS status Theorem" in txt
+    # Check for satisfiability/unsatisfiability
+    unsat = "SZS status Unsatisfiable" in txt or theorem_proved
+    sat = "SZS status Satisfiable" in txt
+
+    result = {"tool":"eprover","available":True,"unsat":unsat,"sat":sat,"raw":txt}
+    if theorem_proved:
+        result["theorem"] = True
+        result["note"] = "Conjecture proved"
+    return result
