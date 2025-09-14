@@ -99,29 +99,7 @@ The **AF Semantics** section in `report.md` shows accepted arguments under diffe
 
 ## 4) Web Frontend
 
-For a simpler, graphical interface:
-
-```bash
-# Install dependencies (if not already installed)
-pip install flask gunicorn
-
-# Development server
-python web.py
-
-# Production server (recommended for deployment)
-python web.py --production
-
-# Open browser to: http://127.0.0.1:5000
-```
-
-The web frontend provides:
-- Clean, mobile-responsive interface
-- All CLI functionality (defeasible FOL, goal selection)
-- Rich results display with collapsible sections
-- API endpoint for programmatic access
-- Built-in examples to get started
-
-See `WEB.md` for detailed usage instructions.
+For a simpler, see `WEB_README.md`
 
 ---
 
