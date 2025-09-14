@@ -319,6 +319,12 @@ function App() {
                     disabled: !result.result.semantics
                   },
                   {
+                    id: 'eprover',
+                    label: 'E-Prover Results',
+                    content: <ResultDisplay type="eprover" data={result.result.fol_summary} />,
+                    disabled: !result.result.fol_summary
+                  },
+                  {
                     id: 'findings',
                     label: 'Findings',
                     content: <ResultDisplay type="findings" data={result.result.findings} />,
