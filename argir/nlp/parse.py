@@ -1,7 +1,8 @@
 from __future__ import annotations
 import json
-from typing import Tuple, Dict, Any
-from .llm import generate_json
+from typing import Tuple, Dict, Any, Callable
+from .llm import generate_json, init_llm_client, generate_content, LLM_MODEL
+from google.genai import types
 
 PARSE_SYSTEM = """You are an argument parser. Output ONE JSON object that conforms to ARGIR's contract.
 If you cannot satisfy ALL constraints below, do NOT guess—re-think and fix before emitting JSON.
@@ -71,3 +72,14 @@ def llm_draft(text: str) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     if not isinstance(doc, dict):
         raise ValueError("LLM returned JSON but not an object.")
     return doc, {"raw": doc}
+
+def get_llm() -> Callable[[str, str], str]:
+    """Return a callable LLM function for soft pipeline."""
+    def llm_call(system_prompt: str, user_prompt: str) -> str:
+        client = init_llm_client(required=True)
+        combined = f"{system_prompt}\n\n{user_prompt}"
+        cfg = types.GenerateContentConfig(temperature=0.2, response_mime_type="application/json")
+        resp = generate_content(client, contents=combined, config=cfg, model=LLM_MODEL)
+        text = getattr(resp, "text", None) or getattr(resp, "output_text", None) or ""
+        return text
+    return llm_call

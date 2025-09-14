@@ -1,7 +1,7 @@
 from __future__ import annotations
 import argparse, os, json, sys
 import argir as _argir_pkg
-from .pipeline import run_pipeline
+from .pipeline import run_pipeline, run_pipeline_soft
 
 def main():
     parser = argparse.ArgumentParser(description=f"ARGIR pipeline (v{_argir_pkg.__version__})")
@@ -10,6 +10,8 @@ def main():
     parser.add_argument("--defeasible-fol", action="store_true", help="Export FOL with simple defeasible exceptions (~exceptions in antecedent)")
     parser.add_argument("--goal", help="Node id to use as the conjecture goal (overrides auto selection)")
     parser.add_argument("--strict-fail", action="store_true", help="Fail on strict validation errors (for CI/CD)")
+    parser.add_argument("--soft", action="store_true", help="Use soft IR extraction with deterministic canonicalization")
+    parser.add_argument("--k-samples", type=int, default=1, help="Number of soft IR samples to try (picks best)")
     parser.add_argument("-V","--version", action="store_true", help="Print version and module path and exit")
     args = parser.parse_args()
 
@@ -21,10 +23,29 @@ def main():
         text = f.read()
     print(f"[ARGIR] Using package at: {_argir_pkg.__file__} (v{_argir_pkg.__version__})")
 
-    res = run_pipeline(text, fol_mode=("defeasible" if args.defeasible_fol else "classical"), goal_id=args.goal)
+    # Choose pipeline based on --soft flag
+    if args.soft:
+        print(f"[ARGIR] Using soft IR pipeline with k={args.k_samples} samples")
+        res = run_pipeline_soft(text,
+                              fol_mode=("defeasible" if args.defeasible_fol else "classical"),
+                              goal_id=args.goal,
+                              k_samples=args.k_samples)
+    else:
+        res = run_pipeline(text, fol_mode=("defeasible" if args.defeasible_fol else "classical"), goal_id=args.goal)
 
     # Handle validation issues
-    if res.get('validation_issues'):
+    if args.soft and res.get('soft_validation'):
+        # For soft pipeline, show validation report
+        validation_report = res['soft_validation']
+        if validation_report.errors():
+            print("\n❌ Soft IR validation errors:")
+            for issue in validation_report.errors():
+                print(f"  • [{issue.code}] {issue.path}: {issue.message}")
+        if validation_report.warn():
+            print("\n⚠️  Soft IR validation warnings:")
+            for issue in validation_report.warn():
+                print(f"  • [{issue.code}] {issue.path}: {issue.message}")
+    elif res.get('validation_issues'):
         print("\n⚠️  Validation issues detected:")
         for issue in res['validation_issues']:
             print(f"  • Node '{issue['node']}': {issue['message']}")
