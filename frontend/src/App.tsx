@@ -39,7 +39,7 @@ function App() {
   const [text, setText] = useState('');
   const [folMode, setFolMode] = useState<'classical' | 'defeasible'>('classical');
   const [goalId, setGoalId] = useState('');
-  const [useSoft, setUseSoft] = useState(false);
+  const [useSoft, setUseSoft] = useState(true);
   const [kSamples, setKSamples] = useState(1);
   const [apiKey, setApiKey] = useState('');
 
