@@ -19,26 +19,32 @@ def _extract_entity(pred_text: str) -> tuple[str, list[str]]:
     """Extract proper nouns and entities from predicate text.
     Returns (simplified_pred, [entities])
     """
-    # Common proper nouns to extract (extend as needed)
+    # Common proper noun patterns to extract
     entities_patterns = [
+        # Specific entities (case-insensitive)
         ("diablo_canyon", "diablo_canyon"),
         ("diablo canyon", "diablo_canyon"),
-        ("nuclear_power_plant", "nuclear_plant"),
-        ("power_plant", "plant"),
     ]
 
     pred_lower = pred_text.lower()
     extracted = []
 
-    # Look for known entities
+    # Look for known entities and extract them
     for pattern, entity in entities_patterns:
         if pattern in pred_lower:
-            pred_lower = pred_lower.replace(pattern, "")
-            extracted.append(entity)
+            pred_lower = pred_lower.replace(pattern, "").strip()
+            if entity not in extracted:
+                extracted.append(entity)
 
-    # Clean up the predicate
+    # Clean up the predicate - remove extra spaces and underscores
     pred_lower = " ".join(pred_lower.split())  # collapse spaces
     pred_lower = pred_lower.strip("_").strip()
+
+    # If predicate is empty after extraction, keep original
+    if not pred_lower and extracted:
+        # Pure entity reference - make it a type predicate
+        if "diablo_canyon" in extracted:
+            pred_lower = "is_entity"
 
     return pred_lower, extracted
 
@@ -56,9 +62,22 @@ class AtomTable:
     # simple aliasing map (surface -> canonical)
     alias: Dict[str, str] = field(default_factory=dict)
 
-    def propose(self, surface_pred: str, observed_arity: int) -> str:
-        """Propose a canonical form for a surface predicate, tracking the original."""
-        norm = _normalize_surface(surface_pred)
+    def propose(self, surface_pred: str, observed_arity: int) -> tuple[str, list[str]]:
+        """Propose a canonical form for a surface predicate, tracking the original.
+        Returns (canonical_pred, [extracted_entities])
+        """
+        # First try entity extraction for known patterns
+        simplified_pred, entities = _extract_entity(surface_pred.lower())
+
+        # If we extracted entities, use the simplified predicate
+        if entities and simplified_pred:
+            # Adjust arity - we're moving entities from pred name to args
+            adjusted_arity = observed_arity + len(entities)
+            norm = _normalize_surface(simplified_pred)
+        else:
+            # No entities extracted, use original normalization
+            norm = _normalize_surface(surface_pred)
+            adjusted_arity = observed_arity
 
         # Do we already have an exact alias?
         if norm in self.alias:
@@ -66,7 +85,7 @@ class AtomTable:
             # Add this surface form to examples if it's different from canonical
             if surface_pred != canon and surface_pred not in self.entries[canon].examples:
                 self.entries[canon].examples.append(surface_pred)
-            return canon
+            return canon, entities
 
         # Try to find near-duplicates by similarity
         best_key, best_sim = None, 0.0
@@ -75,26 +94,26 @@ class AtomTable:
             if sim > best_sim:
                 best_key, best_sim = key, sim
 
-        if best_key and best_sim >= 0.92 and self.entries[best_key].arity == observed_arity:
+        if best_key and best_sim >= 0.92 and self.entries[best_key].arity == adjusted_arity:
             self.alias[norm] = best_key
             # Add unique surface form
             if surface_pred not in self.entries[best_key].examples:
                 self.entries[best_key].examples.append(surface_pred)
-            return best_key
+            return best_key, entities
 
         # New canonical
         canon = norm
         # If a clash with different arity exists, disambiguate canon by suffix
-        if canon in self.entries and self.entries[canon].arity != observed_arity:
-            canon = f"{canon}_{observed_arity}"
+        if canon in self.entries and self.entries[canon].arity != adjusted_arity:
+            canon = f"{canon}_{adjusted_arity}"
 
         if canon not in self.entries:
             # Store original surface form, not canonical
             examples = [surface_pred] if surface_pred != canon else []
-            self.entries[canon] = AtomEntry(canonical=canon, arity=observed_arity,
+            self.entries[canon] = AtomEntry(canonical=canon, arity=adjusted_arity,
                                             examples=examples)
         self.alias[norm] = canon
-        return canon
+        return canon, entities
 
     def ensure(self, canonical: str, arity: int):
         if canonical not in self.entries:

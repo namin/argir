@@ -28,10 +28,16 @@ def _assign_ids(nodes: List[SoftNode]) -> Dict[str, str]:
     return mapping
 
 def _canon_stmt(stmt: SoftStatement, at: AtomTable) -> Tuple[str, int, dict]:
-    pred = at.propose(stmt.pred, observed_arity=len(stmt.args))
+    pred, extracted_entities = at.propose(stmt.pred, observed_arity=len(stmt.args))
     # Convert to ARGIR statement format with atoms
     # Args must be Term objects with kind and name fields
     args = [{"kind": "Const", "name": t.value} for t in stmt.args]
+
+    # Prepend extracted entities as arguments
+    if extracted_entities:
+        entity_args = [{"kind": "Const", "name": e} for e in extracted_entities]
+        args = entity_args + args
+
     obj = {
         "kind": "Stmt",
         "text": stmt.pred,  # Keep original text for provenance
@@ -45,7 +51,7 @@ def _canon_stmt(stmt: SoftStatement, at: AtomTable) -> Tuple[str, int, dict]:
         "rationale": None,
         "confidence": None
     }
-    return pred, len(stmt.args), obj
+    return pred, len(args), obj
 
 def compile_soft_ir(soft: SoftIR, *, existing_atoms: AtomTable | None = None) -> Tuple[Dict, AtomTable, "ValidationReport"]:
     """Return a canonical ARGIR object (JSON-safe dict) that satisfies the hard contract."""
