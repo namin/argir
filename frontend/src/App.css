@@ -1,0 +1,173 @@
+.app {
+  min-height: 100vh;
+  background: linear-gradient(to bottom, #f8f9fa, #ffffff);
+}
+
+.appbar {
+  background: white;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 1rem 2rem;
+  display: flex;
+  align-items: center;
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.05);
+}
+
+.brand h1 {
+  margin: 0;
+  font-size: 1.5rem;
+  color: #2563eb;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+
+.subtitle {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin-left: 0.5rem;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.api-key-input {
+  width: 240px;
+  font-size: 0.875rem;
+}
+
+.main {
+  padding: 2rem 0;
+}
+
+.input-section {
+  margin-bottom: 2rem;
+}
+
+.description {
+  color: #6b7280;
+  margin: 1rem 0;
+  line-height: 1.6;
+}
+
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: #374151;
+}
+
+.form-group textarea {
+  width: 100%;
+  min-height: 150px;
+  font-family: inherit;
+}
+
+.form-group input[type="number"] {
+  width: 100px;
+}
+
+.form-group small {
+  display: block;
+  margin-top: 0.25rem;
+  color: #6b7280;
+  font-size: 0.875rem;
+}
+
+.options-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+@media (max-width: 768px) {
+  .options-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.checkbox-row {
+  margin-bottom: 1.5rem;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+}
+
+.checkbox-label input[type="checkbox"] {
+  margin-right: 0.5rem;
+  width: auto;
+  cursor: pointer;
+}
+
+.checkbox-label span {
+  font-weight: 500;
+  color: #374151;
+}
+
+.soft-options {
+  margin-left: 1.5rem;
+  padding-left: 1rem;
+  border-left: 3px solid #e5e7eb;
+}
+
+.button-row {
+  margin-top: 1.5rem;
+}
+
+.analyze-button {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+}
+
+.analyze-button:hover {
+  background: linear-gradient(135deg, #1d4ed8, #1e40af);
+  transform: translateY(-1px);
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+}
+
+.analyze-button:disabled {
+  transform: none;
+  box-shadow: none;
+}
+
+.example {
+  margin-bottom: 1rem;
+  padding: 1rem;
+  background: #f9fafb;
+  border-radius: 6px;
+}
+
+.example strong {
+  color: #111827;
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+.example p {
+  font-style: italic;
+  color: #6b7280;
+  margin: 0;
+}
+
+.results-section {
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
