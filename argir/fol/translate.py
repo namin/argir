@@ -1,9 +1,21 @@
 from __future__ import annotations
 from typing import List, Tuple, Optional
+import re
 from .ast import Atom, Pred, Var, Const, Forall, Exists, Not, And, Or, Implies, Formula, Term
 from ..core.model import ARGIR, Statement, NodeRef, InferenceStep
 
-def _to_term(t): return Const(t.name) if t.kind=="Const" else Var(t.name)
+# Variable name pattern for salvaging variables in strict mode
+VAR_NAME_RE = re.compile(r'^[XYZWUV]\d*$')  # X, Y, Z, W, U, V with optional digits
+
+def _to_term(t):
+    """Convert term dict to FOL Term, with variable salvage for strict mode."""
+    name = t.name
+    kind = getattr(t, "kind", None) if hasattr(t, "kind") else t.get("kind")
+    # If explicitly marked as Var, or matches our variable pattern, treat as variable
+    if kind == "Var" or VAR_NAME_RE.match(name):
+        return Var(name)
+    return Const(name)
+
 def _to_atom(a): return Atom(Pred(a.pred, len(a.args)), [_to_term(x) for x in a.args], a.negated)
 
 def _vars_in_atom(a: Atom) -> set[str]:
