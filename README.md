@@ -105,7 +105,7 @@ For a simpler, see `WEB_README.md`
 
 ## 5) Tests
 
-Run `python tests/run.py`. Do export `CACHE_LLM=true`.
+Run `python tests/run.py --soft`. Do export `CACHE_LLM=true`.
 
 ---
 
