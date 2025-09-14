@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import './App.css';
 import { TabContainer } from './components/TabContainer';
 import { ResultDisplay } from './components/ResultDisplay';
+import { ArgumentGraph } from './components/ArgumentGraph';
 
 type ArgirResult = {
   success: boolean;
@@ -302,8 +303,13 @@ function App() {
                     content: <ResultDisplay type="report" data={result.result.report_md} />
                   },
                   {
-                    id: 'graph',
-                    label: 'Argument Graph',
+                    id: 'graph-visual',
+                    label: 'Graph View',
+                    content: <ArgumentGraph data={result.result.argir?.graph} />
+                  },
+                  {
+                    id: 'graph-json',
+                    label: 'Graph JSON',
                     content: <ResultDisplay type="json" data={result.result.argir} />
                   },
                   {
