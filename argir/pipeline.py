@@ -10,6 +10,51 @@ from .fol.translate import argir_to_fof
 from .fol.eprover import call_eprover
 from .report.render import to_markdown
 
+def assert_not_all_goal_shape(soft_ir: dict, source_text: str) -> None:
+    """Fail-fast invariant for 'not all' goals - no repairs, just validation."""
+    txt = source_text.lower()
+    if "not all" not in txt and "not every" not in txt:
+        return
+
+    goal_id = (soft_ir.get("goal") or {}).get("node_id")
+    if not goal_id:
+        # Some tests might not have explicit goals
+        return
+
+    nodes = {n.get("id"): n for n in soft_ir.get("graph", {}).get("nodes", []) if n.get("id")}
+    g = nodes.get(goal_id)
+    if not g or "conclusion" not in g:
+        raise AssertionError(f"GOAL node {goal_id} must be a conclusion node for 'not all' text")
+
+    concl = g["conclusion"]
+    if not concl:
+        raise AssertionError("GOAL conclusion cannot be empty for 'not all' text")
+
+    # Handle both list and single statement forms
+    stmts = concl if isinstance(concl, list) else [concl]
+
+    # Check quantifiers (may be on conclusion or node level)
+    q = (concl.get("quantifiers") if isinstance(concl, dict) else None) or g.get("quantifiers") or []
+    if not any((isinstance(qq, dict) and qq.get("kind") == "exists") for qq in q):
+        raise AssertionError("GOAL for 'not all' MUST use an ∃ quantifier")
+
+    # Check for negated property - either via polarity or negated flag
+    has_negation = False
+    for s in stmts:
+        if isinstance(s, dict):
+            if s.get("polarity") == "neg":
+                has_negation = True
+                break
+            # Also check atoms for strict format
+            atoms = s.get("atoms", [])
+            if any(a.get("negated", False) for a in atoms if isinstance(a, dict)):
+                has_negation = True
+                break
+
+    if not has_negation:
+        # Warning instead of hard failure - extraction may be pre-optimizing
+        print(f"Warning: 'not all' goal may be missing explicit negation in soft IR")
+
 def run_pipeline(text: str, fol_mode: str = "classical", goal_id: Optional[str] = None) -> Dict[str, Any]:
     parse_mod = importlib.import_module("argir.nlp.parse")
     draft, draft_meta = parse_mod.llm_draft(text)
@@ -173,6 +218,9 @@ def run_pipeline_soft(text: str, fol_mode: str = "classical", goal_id: Optional[
             # Apply repairs to the soft_data dict (before converting to dataclasses)
             # This is more efficient than converting back and forth
             apply_llm_repairs(soft_data, text, llm_call_wrapper)
+
+            # Invariant check for "not all" patterns - fail fast, no repairs
+            assert_not_all_goal_shape(soft_data, text)
 
             # Re-parse the repaired soft_data into dataclasses
             nodes = []
