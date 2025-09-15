@@ -145,6 +145,54 @@ def fill_exceptions_via_llm(soft_ir: dict, source_text: str, llm_call: LLMCall) 
                 node["rule"]["exceptions"].extend(exceptions)
 
 
+def unify_polarity_via_llm(soft_ir: dict, llm_call: LLMCall) -> Dict[str, dict]:
+    """
+    Ask the LLM to identify antonym/negation relations and map them to
+    canonical predicates with polarity.
+    Returns the polarity mapping for logging.
+    """
+    from .prompts import repair_prompt_for_predicate_polarity
+
+    surface_preds = collect_surface_predicates(soft_ir)
+    if not surface_preds:
+        return {}
+
+    # Get polarity mapping from LLM
+    prompt = repair_prompt_for_predicate_polarity(surface_preds)
+    response = llm_call(prompt)
+
+    try:
+        polarity_map = json.loads(response)
+        if not isinstance(polarity_map, dict):
+            raise ValueError("Expected dict mapping")
+    except Exception as e:
+        print(f"Warning: LLM polarity unification failed: {e}")
+        return {}
+
+    # Apply mapping to all statements
+    for node, location, stmt in _iter_statements(soft_ir):
+        pred = stmt.get("pred")
+        if pred and pred in polarity_map:
+            mapping = polarity_map[pred]
+            if isinstance(mapping, dict):
+                # Update predicate to canonical form
+                if "canonical" in mapping:
+                    stmt["pred"] = mapping["canonical"]
+                # Update polarity
+                if "polarity" in mapping:
+                    current_polarity = stmt.get("polarity", "pos")
+                    new_polarity = mapping["polarity"]
+                    # If statement was already negative and we're applying negative mapping,
+                    # the result is positive (double negation)
+                    if current_polarity == "neg" and new_polarity == "neg":
+                        stmt["polarity"] = "pos"
+                    elif current_polarity == "pos" and new_polarity == "neg":
+                        stmt["polarity"] = "neg"
+                    # else keep as is (pos+pos=pos, neg+pos=neg)
+
+    return polarity_map
+
+
 def apply_llm_repairs(soft_ir: dict, source_text: str, llm_call: LLMCall) -> dict:
     """
     Apply all LLM-based repairs to the soft IR.
@@ -157,7 +205,12 @@ def apply_llm_repairs(soft_ir: dict, source_text: str, llm_call: LLMCall) -> dic
     if pred_mapping:
         info["predicate_unification"] = pred_mapping
 
-    # 2. Fill missing exceptions
+    # 2. Unify polarity (antonyms/negations)
+    polarity_mapping = unify_polarity_via_llm(soft_ir, llm_call)
+    if polarity_mapping:
+        info["polarity_unification"] = polarity_mapping
+
+    # 3. Fill missing exceptions
     # Only do this if we don't already have exceptions from the initial extraction
     fill_exceptions_via_llm(soft_ir, source_text, llm_call)
 

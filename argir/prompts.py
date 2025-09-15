@@ -197,3 +197,35 @@ SOURCE TEXT:
 RULES:
 {rules_str}
 """
+
+def repair_prompt_for_predicate_polarity(all_surface_preds: list[str]) -> str:
+    """
+    Ask the LLM to identify antonym/negation relations and map them to
+    a canonical predicate with polarity.
+    """
+    preds_list = "\n".join(f"- {p}" for p in sorted(set(all_surface_preds)))
+    return f"""Identify antonym/negation relations among these predicate names and
+map them to a canonical predicate with a polarity flag.
+
+Look for:
+- Negating prefixes (un-, in-, non-, im-, dis-, a-)
+- Lexical antonyms (mortal/immortal, can_fly/cannot_fly, wet/dry)
+- Negated forms (is_not_X should map to X with neg polarity)
+
+Return JSON mapping each predicate to its canonical form and polarity:
+{{
+  "mortal":     {{"canonical": "mortal", "polarity": "pos"}},
+  "immortal":   {{"canonical": "mortal", "polarity": "neg"}},
+  "can_fly":    {{"canonical": "can_fly", "polarity": "pos"}},
+  "cannot_fly": {{"canonical": "can_fly", "polarity": "neg"}}
+}}
+
+Rules:
+- Use the positive form as canonical when possible
+- Only map pairs you are confident are antonyms/negations
+- Leave unrelated predicates unmapped (they'll keep their original form)
+- If a predicate has no antonym in the list, don't include it
+
+Predicates:
+{preds_list}
+"""
