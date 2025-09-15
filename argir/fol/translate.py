@@ -123,9 +123,13 @@ def rule_to_formula(n: InferenceStep, *, fol_mode: str = "classical") -> Formula
         for s in n.rule.exceptions:
             all_vars |= _vars_in_stmt(s)
         if ants and cons:
-            # Build antecedent with individually negated exceptions: A1 ∧ ... ∧ ¬E1 ∧ ¬E2 ∧ ...
-            neg_excs = [Not(e) for e in excs]
-            ante = _conj(ants + neg_excs)
+            # Build antecedent with exception as single negated conjunction: A1 ∧ ... ∧ ¬(E1 ∧ E2 ∧ ...)
+            # This means: the rule applies EXCEPT when all exception conditions hold together
+            if excs:
+                exc_conj = _conj(excs) if len(excs) > 1 else excs[0]
+                ante = _conj(ants + [Not(exc_conj)])
+            else:
+                ante = _conj(ants) if len(ants) > 1 else ants[0]
             core = Implies(ante, _conj(cons) if len(cons)>1 else cons[0])
             return _forall_wrap(all_vars, core)
     if ants and cons:
