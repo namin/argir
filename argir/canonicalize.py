@@ -2,6 +2,7 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
+import re
 from typing import Dict, List, Tuple
 
 def _normalize_surface(s: str) -> str:
@@ -14,6 +15,52 @@ def _normalize_surface(s: str) -> str:
     s = s.replace("'", "")
     s = " ".join(s.split())         # collapse spaces
     return s.replace(" ", "_")
+
+# ----- Generic aliasing support: signatures & stemming (language-agnostic-ish) -----
+_STOP_TOKENS = {
+    # modals/auxiliaries
+    "will","would","can","could","may","might","must","should","shall",
+    "is","are","am","was","were","be","been","being",
+    "do","does","did","doing","done","have","has","had",
+    # light function words often harmless in predicate strings
+    "the","a","an","to","of","that","this","it"
+}
+
+_SUFFIX_RE = [
+    (re.compile(r"(.+?)ies$"), r"\1y"),      # flies -> fly
+    (re.compile(r"(.+?)(?:ches|shes)$"), r"\1ch"),  # matches -> match, wishes -> wish
+    (re.compile(r"(.+?)(?:xes|zes|ses)$"), r"\1x"), # boxes->box (approx), fixes->fix
+    (re.compile(r"(.+?)s$"), r"\1"),         # cats -> cat (guarded by previous rules)
+    (re.compile(r"(.+?)ing$"), r"\1"),       # raining -> rain (approx; no e/dup handling)
+    (re.compile(r"(.+?)ed$"), r"\1"),        # rained -> rain
+]
+
+def _stem(tok: str) -> str:
+    """Very light, general stemming good enough for alias signatures."""
+    if len(tok) <= 3:
+        return tok
+    for pat, repl in _SUFFIX_RE:
+        if pat.match(tok):
+            return pat.sub(repl, tok)
+    return tok
+
+def _sig_tokens(norm: str) -> tuple[str, ...]:
+    """Signature tokens for aliasing: lowercase, underscore-split, drop stopwords, stem."""
+    toks = [t for t in norm.split("_") if t]
+    toks = [t for t in toks if t not in _STOP_TOKENS]
+    toks = [_stem(t) for t in toks]
+    # de-duplicate while preserving order
+    seen = set(); sig = []
+    for t in toks:
+        if t not in seen:
+            sig.append(t); seen.add(t)
+    return tuple(sig)
+
+def _jaccard(a: tuple[str, ...], b: tuple[str, ...]) -> float:
+    A, B = set(a), set(b)
+    if not A and not B:
+        return 1.0
+    return len(A & B) / max(1, len(A | B))
 
 def _extract_entity(pred_text: str) -> tuple[str, list[str]]:
     """Extract proper nouns and entities from predicate text.
@@ -61,6 +108,8 @@ class AtomTable:
     entries: Dict[str, AtomEntry] = field(default_factory=dict)
     # simple aliasing map (surface -> canonical)
     alias: Dict[str, str] = field(default_factory=dict)
+    # optional: cache of signature tokens per canonical key
+    # (compute on the fly if you prefer)
 
     def propose(self, surface_pred: str, observed_arity: int) -> tuple[str, list[str]]:
         """Propose a canonical form for a surface predicate, tracking the original.
@@ -88,14 +137,26 @@ class AtomTable:
                 self.entries[canon].examples.append(surface_pred)
             return canon, entities
 
-        # Try to find near-duplicates by similarity
+        # Try to find near-duplicates by similarity (string + signature)
         best_key, best_sim = None, 0.0
-        for key in self.entries:
-            sim = SequenceMatcher(None, norm, key).ratio()
+        sig_norm = _sig_tokens(norm)
+        for key, entry in self.entries.items():
+            if entry.arity != adjusted_arity:
+                continue
+            # raw string similarity
+            sim_str = SequenceMatcher(None, norm, key).ratio()
+            # signature similarity (drop function words, stem)
+            sim_sig = _jaccard(sig_norm, _sig_tokens(key))
+            sim = max(sim_str, sim_sig)
             if sim > best_sim:
                 best_key, best_sim = key, sim
 
-        if best_key and best_sim >= 0.92 and self.entries[best_key].arity == adjusted_arity:
+        # Accept alias if either raw string similarity is high
+        # OR signature Jaccard is high.
+        if best_key and (
+            best_sim >= 0.92
+            or _jaccard(sig_norm, _sig_tokens(best_key)) >= 0.85
+        ):
             self.alias[norm] = best_key
             # Add unique surface form if it's different from canonical
             # and not just a normalized version of the canonical
