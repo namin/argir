@@ -119,13 +119,13 @@ def rule_to_formula(n: InferenceStep, *, fol_mode: str = "classical") -> Formula
         all_vars |= _vars_in_stmt(s)
 
     if fol_mode == "defeasible" and n.rule.exceptions:
-        exc = None
+        excs = [stmt_to_formula(s) for s in n.rule.exceptions]
         for s in n.rule.exceptions:
-            psi = stmt_to_formula(s)
-            exc = psi if exc is None else And(exc, psi)
             all_vars |= _vars_in_stmt(s)
         if ants and cons:
-            ante = _conj(ants + ([Not(exc)] if exc else []))
+            # Build antecedent with individually negated exceptions: A1 ∧ ... ∧ ¬E1 ∧ ¬E2 ∧ ...
+            neg_excs = [Not(e) for e in excs]
+            ante = _conj(ants + neg_excs)
             core = Implies(ante, _conj(cons) if len(cons)>1 else cons[0])
             return _forall_wrap(all_vars, core)
     if ants and cons:
@@ -252,24 +252,30 @@ def argir_to_fof(u: ARGIR, *, fol_mode: str = "classical", goal_id: Optional[str
                 fact_formula = _forall_wrap(fact_vars, fact_formula)
             out.append((f"fact_{n.id}", fof(f"fact_{n.id}", "axiom", fact_formula)))
 
-    # NEW: Export orphan premises as facts
+    # NEW: Export orphan premises as facts (resolve NodeRef -> Statement)
     # These are statement premises that aren't concluded anywhere
     orphan_facts = set()
     orphan_counter = 0
     for n in u.graph.nodes:
         for p in n.premises:
-            if isinstance(p, Statement):
-                stmt_formula = stmt_to_formula(p)
-                stmt_key = formula(stmt_formula)
-                if stmt_key not in concluded_stmts and stmt_key not in orphan_facts:
-                    orphan_facts.add(stmt_key)
-                    orphan_counter += 1
-                    # Quantify over any free variables in orphan facts
-                    orphan_vars = _vars_in_stmt(p)
-                    if orphan_vars:
-                        stmt_formula = _forall_wrap(orphan_vars, stmt_formula)
-                    out.append((f"orphan_fact_{orphan_counter}",
-                              fof(f"orphan_fact_{orphan_counter}", "axiom", stmt_formula)))
+            s = premise_to_statement(p, id2node)  # resolve NodeRef
+            if not isinstance(s, Statement):
+                continue
+            # Skip rule references; those are exported via the rule pass
+            if (s.text or "").startswith("<rule:"):
+                continue
+
+            stmt_formula = stmt_to_formula(s)
+            stmt_key = formula(stmt_formula)
+            if stmt_key not in concluded_stmts and stmt_key not in orphan_facts:
+                orphan_facts.add(stmt_key)
+                orphan_counter += 1
+                # Quantify over any free variables in orphan facts
+                orphan_vars = _vars_in_stmt(s)
+                if orphan_vars:
+                    stmt_formula = _forall_wrap(orphan_vars, stmt_formula)
+                out.append((f"orphan_fact_{orphan_counter}",
+                          fof(f"orphan_fact_{orphan_counter}", "axiom", stmt_formula)))
     # Export node links (but skip if the node just references a rule)
     for n in u.graph.nodes:
         if n.conclusion and n.premises:
