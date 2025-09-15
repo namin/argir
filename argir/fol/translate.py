@@ -276,45 +276,9 @@ def argir_to_fof(u: ARGIR, *, fol_mode: str = "classical", goal_id: Optional[str
                     stmt_formula = _forall_wrap(orphan_vars, stmt_formula)
                 out.append((f"orphan_fact_{orphan_counter}",
                           fof(f"orphan_fact_{orphan_counter}", "axiom", stmt_formula)))
-    # Export node links (but skip if the node just references a rule)
-    for n in u.graph.nodes:
-        if n.conclusion and n.premises:
-            # Check if this node references a rule
-            has_rule_ref = False
-            for p in n.premises:
-                if isinstance(p, NodeRef):
-                    ref_node = id2node.get(p.ref)
-                    if ref_node and ref_node.rule:
-                        has_rule_ref = True
-                        break
-
-            # Skip the link if it references a rule (the rule is already exported)
-            if has_rule_ref:
-                # Just ensure non-rule premises are captured as orphan facts above
-                continue
-
-            # Otherwise, create the link axiom from premises to conclusion
-            prem_stmts = [premise_to_statement(p, id2node) for p in n.premises]
-            prem_forms: list[Formula] = []
-            for s in prem_stmts:
-                # This shouldn't happen anymore but keep as safety
-                if isinstance(s, Statement) and s.text.startswith("<rule:"):
-                    continue  # Skip rule refs
-                else:
-                    prem_forms.append(stmt_to_formula(s))
-
-            if prem_forms:  # Only create link if we have actual premises
-                prem = _conj(prem_forms) if len(prem_forms)>1 else prem_forms[0]
-                concl = stmt_to_formula(n.conclusion)
-                # Quantify over free variables in premises and conclusion
-                vars_p = set()
-                for s in prem_stmts:
-                    if isinstance(s, Statement):
-                        vars_p |= _vars_in_stmt(s)
-                vars_c = _vars_in_stmt(n.conclusion)
-                core = Implies(prem, concl)
-                core = _forall_wrap(vars_p | vars_c, core)
-                out.append((f"node_{n.id}_link", fof(f"node_{n.id}_link", "axiom", core)))
+    # Inference-node linkage axioms removed to prevent vacuous proofs
+    # These were axioms of the form: premises => conclusion for any node with both
+    # They allowed proofs to bypass the actual logical rules
     # ---------- Goal ----------
     chosen = choose_goal_node(u, goal_id=goal_id)
     if chosen:
