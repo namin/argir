@@ -68,6 +68,16 @@ Guidelines:
 - Use "support" edges for positive relationships between arguments
 - We'll automatically canonicalize predicates later - focus on clarity
 
+CRITICAL for defeasible reasoning and exceptions:
+- Words like "Normally", "Usually", "Typically", "Generally" indicate defeasible rules (set strict=false)
+- When a general rule is followed by a specific counterexample that contradicts it:
+  * Add the counterexample conditions to the rule's "exceptions" field
+  * Example: "Birds can fly. Ostriches are birds. Ostriches cannot fly."
+    → Create rule: bird(X) => can_fly(X) with exceptions: [bird(ostriches), ~can_fly(ostriches)]
+  * Example: "If it rains, streets get wet. However, covered streets stay dry even when raining."
+    → Create rule: rains => streets_wet with exceptions: [covered_streets]
+- Also create attack edges from exception instances to show they undermine the general rule
+
 CRITICAL for generalizations and rules:
 - ALWAYS use variables (X, Y, Z; optional digits) for general statements.
 - "All/Every S are P" → make a RULE with antecedent: {"pred":"S", "args":[{"value":"X"}]}, consequent: {"pred":"P", "args":[{"value":"X"}]}.
