@@ -161,6 +161,114 @@ def run_pipeline_soft(text: str, fol_mode: str = "classical", goal_id: Optional[
                 goal=soft_data.get("goal")  # Pass through goal
             )
 
+            # Apply LLM repairs to improve consistency
+            from .repair import apply_llm_repairs
+
+            # Create a simple LLM call wrapper using the same LLM instance
+            def llm_call_wrapper(prompt: str) -> str:
+                """Call LLM with minimal system prompt for repairs."""
+                repair_system = "You are a helpful assistant that analyzes and repairs logical argument structures. Return only valid JSON."
+                return llm(repair_system, prompt)
+
+            # Apply repairs to the soft_data dict (before converting to dataclasses)
+            # This is more efficient than converting back and forth
+            apply_llm_repairs(soft_data, text, llm_call_wrapper)
+
+            # Re-parse the repaired soft_data into dataclasses
+            nodes = []
+            for n_data in soft_data.get("graph", {}).get("nodes", []):
+                # Parse premises
+                premises = []
+                for p in n_data.get("premises", []):
+                    if isinstance(p, dict):
+                        if p.get("kind") == "Ref":
+                            premises.append(SoftPremiseRef(ref=p.get("ref", "")))
+                        else:
+                            # It's a statement
+                            args = [SoftTerm(value=a.get("value", "")) for a in p.get("args", [])]
+                            premises.append(SoftStatement(
+                                pred=p.get("pred", ""),
+                                args=args,
+                                polarity=p.get("polarity", "pos"),
+                                quantifiers=p.get("quantifiers")
+                            ))
+
+                # Parse rule if present
+                rule = None
+                if n_data.get("rule"):
+                    r = n_data["rule"]
+                    rule = SoftRule(
+                        name=r.get("name"),
+                        strict=r.get("strict", False),
+                        antecedents=[
+                            SoftStatement(
+                                pred=s.get("pred", ""),
+                                args=[SoftTerm(value=a.get("value", "")) for a in s.get("args", [])],
+                                polarity=s.get("polarity", "pos"),
+                                quantifiers=s.get("quantifiers")
+                            )
+                            for s in r.get("antecedents", [])
+                        ],
+                        consequents=[
+                            SoftStatement(
+                                pred=s.get("pred", ""),
+                                args=[SoftTerm(value=a.get("value", "")) for a in s.get("args", [])],
+                                polarity=s.get("polarity", "pos"),
+                                quantifiers=s.get("quantifiers")
+                            )
+                            for s in r.get("consequents", [])
+                        ],
+                        exceptions=[
+                            SoftStatement(
+                                pred=s.get("pred", ""),
+                                args=[SoftTerm(value=a.get("value", "")) for a in s.get("args", [])],
+                                polarity=s.get("polarity", "pos"),
+                                quantifiers=s.get("quantifiers")
+                            )
+                            for s in r.get("exceptions", [])
+                        ]
+                    )
+
+                # Parse conclusion if present
+                conclusion = None
+                if n_data.get("conclusion"):
+                    c = n_data["conclusion"]
+                    conclusion = SoftStatement(
+                        pred=c.get("pred", ""),
+                        args=[SoftTerm(value=a.get("value", "")) for a in c.get("args", [])],
+                        polarity=c.get("polarity", "pos"),
+                        quantifiers=c.get("quantifiers")
+                    )
+
+                nodes.append(SoftNode(
+                    id=n_data.get("id"),
+                    premises=premises,
+                    rule=rule,
+                    conclusion=conclusion,
+                    rationale=n_data.get("rationale")
+                ))
+
+            # Re-create edges
+            edges = [
+                SoftEdge(
+                    source=e.get("source", ""),
+                    target=e.get("target", ""),
+                    kind=e.get("kind", "support"),
+                    attack_kind=e.get("attack_kind"),
+                    rationale=e.get("rationale")
+                )
+                for e in soft_data.get("graph", {}).get("edges", [])
+            ]
+
+            # Create repaired SoftIR
+            soft_ir = SoftIR(
+                version=soft_data.get("version", "soft-0.1"),
+                source_text=text,
+                graph=SoftGraph(nodes=nodes, edges=edges),
+                metadata=soft_data.get("metadata", {}),
+                goal=soft_data.get("goal")
+            )
+
             # Compile to strict ARGIR
             argir_dict, atom_table, validation_report = compile_soft_ir(soft_ir)
 

@@ -140,3 +140,60 @@ Either:
 
 Return the corrected node or edge structure.
 """
+
+def repair_prompt_for_predicate_unification(all_surface_preds: list[str]) -> str:
+    """
+    Ask the LLM to unify semantically identical surface predicate names
+    (morphology/auxiliaries/modality/synonyms) into a single canonical key
+    per concept, *without* losing arity or argument order.
+    """
+    examples = "\n".join(f"- {p}" for p in sorted(set(all_surface_preds)))
+    return f"""Unify the following surface predicate names into consistent canonical keys.
+Rules:
+- Group semantically identical predicates together
+- Use the simplest base form as the canonical key (singular, present tense, no auxiliaries)
+- Map morphological variants to the same key (e.g., "men", "man", "is a man" -> "man")
+- Map auxiliary variants to the same key (e.g., "will get wet", "gets wet", "get wet" -> "get_wet")
+- Use lowercase with underscores for multi-word canonical keys
+- Keep distinct meanings separate (e.g., "immortal" vs "mortal" are different)
+
+Return JSON object mapping *each* surface predicate string to a canonical key, e.g.:
+{{
+  "men": "man",
+  "is a man": "man",
+  "it rains": "rain",
+  "raining": "rain",
+  "streets will get wet": "streets_get_wet",
+  "streets get wet": "streets_get_wet"
+}}
+
+Surface predicates:
+{examples}
+"""
+
+def repair_prompt_for_rule_exceptions(source_text: str, compact_rules: list) -> str:
+    """
+    Ask the LLM to infer exception conditions from the source text for given rules.
+    """
+    import json
+    rules_str = json.dumps(compact_rules, indent=2)
+    return f"""From the SOURCE TEXT, identify exception conditions for each RULE (if any).
+
+Look for:
+- Words like "except", "unless", "however", "but", "normally" that indicate exceptions
+- Specific counterexamples that contradict general rules
+- Conditions that prevent the normal consequence
+
+For each rule with exceptions, return the exception conditions as statements.
+Statement format: {{"pred": "<surface predicate>", "args": [{{"value": "X"}}], "polarity": "pos"/"neg"}}
+
+Return a JSON list; each item: {{"rule_id": "<id>", "exceptions": [<Statements>]}}.
+Only include rules that actually have exceptions mentioned in the SOURCE TEXT.
+Empty list [] if no exceptions found.
+
+SOURCE TEXT:
+\"\"\"{source_text.strip()}\"\"\"
+
+RULES:
+{rules_str}
+"""
