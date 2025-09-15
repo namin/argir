@@ -17,26 +17,17 @@ def assert_not_all_goal_shape(soft_ir: dict, source_text: str) -> None:
         return
 
     goal_id = (soft_ir.get("goal") or {}).get("node_id")
-    if not goal_id:
-        # Some tests might not have explicit goals
-        return
+    assert goal_id, "Not-all text present, but no GOAL node_id in soft IR"
 
     nodes = {n.get("id"): n for n in soft_ir.get("graph", {}).get("nodes", []) if n.get("id")}
     g = nodes.get(goal_id)
-    if not g or "conclusion" not in g:
-        raise AssertionError(f"GOAL node {goal_id} must be a conclusion node for 'not all' text")
+    assert g and "conclusion" in g, f"GOAL node {goal_id} must be a conclusion node for 'not all' text"
 
     concl = g["conclusion"]
-    if not concl:
-        raise AssertionError("GOAL conclusion cannot be empty for 'not all' text")
+    assert concl, "GOAL conclusion cannot be empty for 'not all' text"
 
     # Handle both list and single statement forms
     stmts = concl if isinstance(concl, list) else [concl]
-
-    # Check quantifiers (may be on conclusion or node level)
-    q = (concl.get("quantifiers") if isinstance(concl, dict) else None) or g.get("quantifiers") or []
-    if not any((isinstance(qq, dict) and qq.get("kind") == "exists") for qq in q):
-        raise AssertionError("GOAL for 'not all' MUST use an ∃ quantifier")
 
     # Check for negated property - either via polarity or negated flag
     has_negation = False
@@ -51,9 +42,14 @@ def assert_not_all_goal_shape(soft_ir: dict, source_text: str) -> None:
                 has_negation = True
                 break
 
+    # Check quantifiers (may be on conclusion or node level)
+    q = (concl.get("quantifiers") if isinstance(concl, dict) else None) or g.get("quantifiers") or []
+    assert any((isinstance(qq, dict) and qq.get("kind") == "exists") for qq in q), \
+        "GOAL for 'not all' MUST use an ∃ quantifier"
+
     if not has_negation:
         # Warning instead of hard failure - extraction may be pre-optimizing
-        print(f"Warning: 'not all' goal may be missing explicit negation in soft IR")
+        print(f"Warning: 'not all' goal may be missing explicit negation in soft IR (pre-optimized?)")
 
 def run_pipeline(text: str, fol_mode: str = "classical", goal_id: Optional[str] = None) -> Dict[str, Any]:
     parse_mod = importlib.import_module("argir.nlp.parse")
