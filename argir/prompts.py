@@ -49,7 +49,7 @@ Output a single JSON object with this structure:
 
 Statement format:
 {
-  "pred": "<predicate name>",           // Keep short & contentful (avoid 'is', articles)
+  "pred": "<predicate name>",           // Use natural language as it appears in the text
   "args": [{"value": "<arg>"}],         // Simple strings; use X,Y,Z for variables, proper names for constants
   "polarity": "pos" | "neg",            // Default "pos"
   "quantifiers": [                      // OPTIONAL; REQUIRED for general (quantified) GOAL conclusions
@@ -58,13 +58,15 @@ Statement format:
 }
 
 Guidelines:
-- Use simple, descriptive predicates (e.g., "raining", "streets_wet", not "it is raining")
+- Use NATURAL LANGUAGE predicates as they appear in the text
+- DO NOT pre-canonicalize predicates with underscores
+- Keep predicates readable and close to the original phrasing
 - Node IDs are optional (we'll assign stable ones)
 - For simple conditionals, create a rule node with antecedents/consequents
 - For arguments with premises leading to conclusions, create inference nodes
 - Use "attack" edges for counterarguments, exceptions, or rebuttals
 - Use "support" edges for positive relationships between arguments
-- No need for canonical predicate names - we'll canonicalize them automatically
+- We'll automatically canonicalize predicates later - focus on clarity
 
 CRITICAL for generalizations and rules:
 - ALWAYS use variables (X, Y, Z; optional digits) for general statements.
@@ -92,7 +94,7 @@ SOFT_EXTRACTION_USER_TEMPLATE = """Convert the following text into SOFT IR forma
 Remember to:
 1. Extract the logical structure (premises, conclusions, rules)
 2. Identify support and attack relationships
-3. Use simple predicate names without articles or "is/are"
+3. Use natural language predicates as they appear in the source text
 4. Choose exactly one GOAL (goal.node_id + metadata.goal_id must point to it)
 5. If the GOAL is general, use variables in its conclusion and add quantifiers[] (forall/exists as appropriate)
 6. NEVER invent 0-arity macro predicates; NEVER use 'atoms' or 'text' keys in statements

@@ -83,7 +83,8 @@ class AtomTable:
         if norm in self.alias:
             canon = self.alias[norm]
             # Add this surface form to examples if it's different from canonical
-            if surface_pred != canon and surface_pred not in self.entries[canon].examples:
+            # and not just a normalized version of the canonical
+            if surface_pred != canon and norm != canon and surface_pred not in self.entries[canon].examples:
                 self.entries[canon].examples.append(surface_pred)
             return canon, entities
 
@@ -96,8 +97,9 @@ class AtomTable:
 
         if best_key and best_sim >= 0.92 and self.entries[best_key].arity == adjusted_arity:
             self.alias[norm] = best_key
-            # Add unique surface form
-            if surface_pred not in self.entries[best_key].examples:
+            # Add unique surface form if it's different from canonical
+            # and not just a normalized version of the canonical
+            if surface_pred != best_key and norm != best_key and surface_pred not in self.entries[best_key].examples:
                 self.entries[best_key].examples.append(surface_pred)
             return best_key, entities
 
