@@ -35,8 +35,19 @@ _SUFFIX_RE = [
     (re.compile(r"(.+?)ed$"), r"\1"),        # rained -> rain
 ]
 
+# Common irregular forms
+_IRREGULAR = {
+    "men": "man",
+    "women": "woman",
+    "children": "child",
+    "people": "person",
+}
+
 def _stem(tok: str) -> str:
     """Very light, general stemming good enough for alias signatures."""
+    # Check irregular forms first
+    if tok in _IRREGULAR:
+        return _IRREGULAR[tok]
     if len(tok) <= 3:
         return tok
     for pat, repl in _SUFFIX_RE:
