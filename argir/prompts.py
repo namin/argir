@@ -83,7 +83,16 @@ CRITICAL for generalizations and rules:
 - "All/Every S are P" → make a RULE with antecedent: {"pred":"S", "args":[{"value":"X"}]}, consequent: {"pred":"P", "args":[{"value":"X"}]}.
 - "Some/There exists S that are P" → prefer a conclusion with variables and quantifiers=[{"kind":"exists","vars":["X"]}].
 - "Not all S are P" → prefer a counterexample conclusion with two predicates: S(X) and ~P(X) with quantifiers=[{"kind":"exists","vars":["X"]}].
-- NEVER create 0-arity macro predicates like "all_birds_can_fly" or "not_all_birds_can_fly".
+- NEVER create fused/macro predicates that combine a subject/class with a property.
+  Examples of FORBIDDEN fused predicates (any arity): "bird_can_fly", "birds_are_mortal",
+  "all_birds_can_fly", "not_all_birds_can_fly".
+  Instead:
+    • Represent the subject/class as its own predicate: bird(X)
+    • Represent the property as its own predicate: fly(X) or can_fly(X)
+    • For generalizations ("all", "most", "normally", "typically"), create a RULE node:
+        antecedents: [{pred:"bird", args:[{"value":"X"}]}]
+        consequents: [{pred:"fly", args:[{"value":"X"}]}]
+  This applies to ALL such cases, not only 0-arity slogans.
 - Variables start with uppercase letters (X, Y, Z, X1, Y2, ...).
 
 GOAL requirements:
@@ -91,6 +100,16 @@ GOAL requirements:
 - If the GOAL is a GENERAL claim (cues: 'all', 'every', 'any', 'no/none', 'not all', 'some', 'there exists'):
   the GOAL node's CONCLUSION MUST use variables and include quantifiers[] (forall/exists as appropriate).
 - If the GOAL is about an INDIVIDUAL (e.g., 'socrates'), keep it ground (quantifiers[] may be empty).
+
+Example (GOOD):
+  "Normally, birds can fly."
+  → Create a RULE node:
+    antecedents: [{"pred":"bird", "args":[{"value":"X"}]}]
+    consequents: [{"pred":"can_fly", "args":[{"value":"X"}]}]
+
+Example (BAD - DO NOT DO THIS):
+  "Normally, birds can fly."
+  → conclusion: {"pred":"bird_can_fly", "args":[{"value":"X"}]}  # ❌ FORBIDDEN fused predicate
 
 STRICT FORMAT IS FORBIDDEN IN SOFT MODE:
 - Do NOT output "atoms", "text", or any nested ARGIR strict structures in statements.
