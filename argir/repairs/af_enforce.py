@@ -130,6 +130,12 @@ def generate_asp_program(
     """
     program = []
 
+    # Helper to quote IDs if needed
+    def quote_id(id_str):
+        if not id_str[0].islower() or any(c in id_str for c in '-_'):
+            return f'"{id_str}"'
+        return id_str
+
     # Add base AF facts
     for fact in af_facts:
         # Convert arg() to arg0() and att() to att0()
@@ -138,18 +144,18 @@ def generate_asp_program(
         elif fact.startswith("att("):
             program.append(fact.replace("att(", "att0("))
 
-    # Add goal
-    program.append(f"goal({goal_id}).")
+    # Add goal with proper quoting
+    program.append(f"goal({quote_id(goal_id)}).")
 
-    # Add candidates
+    # Add candidates with proper quoting
     for src, tgt in candidates["cand_del"]:
-        program.append(f"cand_del({src},{tgt}).")
+        program.append(f"cand_del({quote_id(src)},{quote_id(tgt)}).")
 
     for src, tgt in candidates["cand_add"]:
-        program.append(f"cand_add({src},{tgt}).")
+        program.append(f"cand_add({quote_id(src)},{quote_id(tgt)}).")
 
     for attacker in candidates["attacks_goal"]:
-        program.append(f"attacks_goal({attacker}).")
+        program.append(f"attacks_goal({quote_id(attacker)}).")
 
     # Add the enforcement encoding
     encoding_path = os.path.join(os.path.dirname(__file__), "af_enforce.lp")

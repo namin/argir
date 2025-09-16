@@ -112,7 +112,9 @@ def analyze_arguments(req: ArgirRequest, x_api_key: Optional[str] = Header(None)
                             repairs.extend(issue_repairs)
             except Exception as e:
                 # Log but don't fail the entire request
+                import traceback
                 print(f"Diagnosis/repair error: {e}")
+                traceback.print_exc()
 
         # Update the report with diagnosis results
         if issues or repairs:

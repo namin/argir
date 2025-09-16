@@ -339,14 +339,20 @@ def extract_af_facts(argir: ARGIR) -> List[str]:
     """
     facts = []
 
+    # Helper to quote IDs if needed for Clingo
+    def quote_id(id_str):
+        if not id_str[0].islower() or any(c in id_str for c in '-_'):
+            return f'"{id_str}"'
+        return id_str
+
     # Add argument facts
     for node in argir.graph.nodes:
-        facts.append(f"arg({node.id}).")
+        facts.append(f"arg({quote_id(node.id)}).")
 
     # Add attack facts
     for edge in argir.graph.edges:
         if edge.kind == "attack":
-            facts.append(f"att({edge.source},{edge.target}).")
+            facts.append(f"att({quote_id(edge.source)},{quote_id(edge.target)}).")
 
     return facts
 
