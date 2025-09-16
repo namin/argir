@@ -347,14 +347,18 @@ def extract_af_facts(argir: ARGIR) -> List[str]:
     """
     facts = []
 
-    # Add argument facts
+    # Add argument facts - filter empty IR_* nodes
     for node in argir.graph.nodes:
-        facts.append(f"arg({quote_id(node.id)}).")
+        # Skip empty implicit rule nodes (IR_*) that have no atoms
+        if _is_af_argument_node(node):
+            facts.append(f"arg({quote_id(node.id)}).")
 
     # Add attack facts
     for edge in argir.graph.edges:
         if edge.kind == "attack":
-            facts.append(f"att({quote_id(edge.source)},{quote_id(edge.target)}).")
+            # Only add attacks between actual AF arguments
+            if _has_af_argument(argir, edge.source) and _has_af_argument(argir, edge.target):
+                facts.append(f"att({quote_id(edge.source)},{quote_id(edge.target)}).")
 
     return facts
 
@@ -363,12 +367,15 @@ def extract_af_args_attacks(argir: ARGIR) -> Tuple[List[str], Set[Tuple[str, str
     """
     Extract arguments and attacks from ARGIR for af_clingo functions.
     """
-    args = [node.id for node in argir.graph.nodes]
+    # Filter empty IR_* nodes
+    args = [node.id for node in argir.graph.nodes if _is_af_argument_node(node)]
     atts = set()
 
     for edge in argir.graph.edges:
         if edge.kind == "attack":
-            atts.add((edge.source, edge.target))
+            # Only add attacks between actual AF arguments
+            if _has_af_argument(argir, edge.source) and _has_af_argument(argir, edge.target):
+                atts.add((edge.source, edge.target))
 
     return args, atts
 
@@ -379,3 +386,24 @@ def atoms_unifiable(atom1, atom2) -> bool:
     """
     return (atom1.pred == atom2.pred and
             len(atom1.args) == len(atom2.args))
+
+
+def _is_af_argument_node(node: InferenceStep) -> bool:
+    """
+    Check if a node should be an AF argument.
+    Filter empty IR_* nodes that have no atoms in conclusion.
+    """
+    # Implicit rule nodes without atoms are not AF arguments
+    if node.id.startswith("IR_"):
+        # Check if it has atoms in conclusion
+        if not node.conclusion or not node.conclusion.atoms:
+            return False
+    return True
+
+
+def _has_af_argument(argir: ARGIR, node_id: str) -> bool:
+    """
+    Check if a node ID corresponds to an AF argument.
+    """
+    node = next((n for n in argir.graph.nodes if n.id == node_id), None)
+    return node is not None and _is_af_argument_node(node)

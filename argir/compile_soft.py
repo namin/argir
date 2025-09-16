@@ -38,6 +38,28 @@ def _mk_term(token: str) -> dict:
         return {"kind": "Var", "name": token}
     return {"kind": "Const", "name": token}
 
+
+def _split_conjunctions(antecedents: List[dict], max_conjuncts: int = 3) -> List[dict]:
+    """
+    Split conjunctions in antecedents when possible.
+    E.g., "P1 and P2" becomes two separate antecedents.
+    """
+    result = []
+    for ant in antecedents:
+        # Check if text contains "and" coordination
+        text = ant.get("text", "")
+        if " and " in text.lower() and len(ant.get("atoms", [])) > 1:
+            # Split atoms across separate antecedents (up to max_conjuncts)
+            atoms = ant.get("atoms", [])[:max_conjuncts]
+            for atom in atoms:
+                new_ant = dict(ant)
+                new_ant["atoms"] = [atom]
+                new_ant["text"] = f"Split conjunct: {atom.get('pred', '')}"
+                result.append(new_ant)
+        else:
+            result.append(ant)
+    return result
+
 def _canon_stmt(stmt: SoftStatement, at: AtomTable) -> Tuple[str, int, dict]:
     pred, extracted_entities = at.propose(stmt.pred, observed_arity=len(stmt.args))
     # Convert to ARGIR statement format with atoms
@@ -140,6 +162,9 @@ def compile_soft_ir(soft: SoftIR, *, existing_atoms: AtomTable | None = None) ->
             # Extract antecedents from premises (only Statements, not Refs)
             antecedents = [p for p in node["premises"] if isinstance(p, dict) and p.get("kind") == "Stmt"]
 
+            # Split conjunctions if possible (max 3 conjuncts)
+            split_antecedents = _split_conjunctions(antecedents, max_conjuncts=3)
+
             # Create implicit rule node
             implicit_rule = {
                 "id": rule_id,
@@ -147,7 +172,7 @@ def compile_soft_ir(soft: SoftIR, *, existing_atoms: AtomTable | None = None) ->
                 "rule": {
                     "name": "implicit_inference",
                     "strict": False,  # Default to defeasible
-                    "antecedents": antecedents,
+                    "antecedents": split_antecedents,
                     "consequents": [node["conclusion"]],
                     "exceptions": [],
                     "scheme": "Implicit inference"
@@ -185,9 +210,23 @@ def compile_soft_ir(soft: SoftIR, *, existing_atoms: AtomTable | None = None) ->
             goal_id = idmap.get(old_goal_id, old_goal_id)
 
     # Compose strict ARGIR object
+    # Get lexicon in the format expected by validator (simple pred -> examples dict)
+    full_lexicon = at.to_lexicon()
+    simple_lexicon = {}
+    if isinstance(full_lexicon, dict):
+        # Extract just the surface forms for validator
+        if "surface_forms" in full_lexicon:
+            simple_lexicon = full_lexicon["surface_forms"]
+        else:
+            # Fallback: use predicates dict
+            for pred in full_lexicon.get("predicates", {}):
+                simple_lexicon[pred] = [pred]
+
     metadata = {
-        # Provide lexicon deterministically to satisfy the contract
-        "atom_lexicon": at.to_lexicon(),
+        # Provide lexicon in format expected by validator
+        "atom_lexicon": simple_lexicon,
+        # Also keep full lexicon for abduction
+        "full_atom_lexicon": full_lexicon,
         "implicit_rules_synthesized": len(implicit_rules) > 0
     }
 

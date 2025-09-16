@@ -15,7 +15,7 @@ from ..semantics.af_clingo import ENCODING as AF_ENCODING
 def enforce_goal(
     argir_data: dict,
     issue: Issue,
-    semantics: str = "grounded",
+    semantics: str = "preferred",  # Changed default to preferred for better repairs
     max_edits: int = 2
 ) -> List[Repair]:
     """
@@ -90,13 +90,22 @@ def build_candidate_pool(
 
     # Allow adding counter-attacks to goal's attackers
     for attacker in candidates["attacks_goal"]:
-        # Goal can counter-attack its attackers
+        # Goal can counter-attack its attackers (primary strategy)
         candidates["cand_add"].append((goal_id, attacker))
 
-        # Other nodes can attack goal's attackers
+        # Allow a limited set of other nodes to attack goal's attackers
+        # Prefer nodes that are already supporting the goal or are unattacked
         for node in argir.graph.nodes:
             if node.id != attacker and node.id != goal_id:
-                candidates["cand_add"].append((node.id, attacker))
+                # Only allow if this node isn't already under attack
+                # or has some relation to the goal (support edge)
+                is_supporter = any(e.source == node.id and e.target == goal_id and e.kind == "support"
+                                  for e in argir.graph.edges)
+                is_unattacked = not any(e.target == node.id and e.kind == "attack"
+                                       for e in argir.graph.edges)
+
+                if is_supporter or is_unattacked:
+                    candidates["cand_add"].append((node.id, attacker))
 
     return candidates
 

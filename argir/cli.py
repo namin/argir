@@ -1,11 +1,38 @@
 from __future__ import annotations
 import argparse, os, json, sys
+from typing import Optional
 import argir as _argir_pkg
 from .pipeline import run_pipeline, run_pipeline_soft
 from .diagnostics import diagnose
 from .repairs.af_enforce import enforce_goal
 from .repairs.fol_abduction import abduce_missing_premises
-from .reporting import render_diagnosis_report, save_repairs_json
+from .reporting import render_diagnosis_report, save_repairs_json, run_hash
+
+
+def auto_detect_goal(argir_obj: dict) -> Optional[str]:
+    """Automatically detect the goal node from metadata or graph structure."""
+    meta = (argir_obj.get("metadata") or {})
+    for k in ("goal_id", "goal_candidate_id"):
+        if meta.get(k):
+            return meta[k]
+
+    nodes = argir_obj.get("graph", {}).get("nodes", [])
+    edges = argir_obj.get("graph", {}).get("edges", [])
+    node_by_id = {n["id"]: n for n in nodes}
+
+    # Prefer "claim-like" nodes with the most incoming supports
+    support_in = {}
+    for e in edges:
+        if e.get("kind") == "support":
+            support_in[e["target"]] = support_in.get(e["target"], 0) + 1
+    if support_in:
+        goal = max(support_in.items(), key=lambda kv: kv[1])[0]
+        if goal in node_by_id:
+            return goal
+
+    # Fallback: any node that is attacked (often the debated claim)
+    attacked = [e["target"] for e in edges if e.get("kind") == "attack"]
+    return attacked[0] if attacked else None
 
 def main():
     parser = argparse.ArgumentParser(description=f"ARGIR pipeline (v{_argir_pkg.__version__})")
@@ -21,6 +48,8 @@ def main():
     parser.add_argument("--semantics", choices=["grounded", "preferred", "stable"], default="grounded", help="AF semantics to use (default: grounded)")
     parser.add_argument("--max-af-edits", type=int, default=2, help="Maximum AF edits for repair (default: 2)")
     parser.add_argument("--max-abduce", type=int, default=2, help="Maximum atoms for abduction (default: 2)")
+    parser.add_argument("--abduce-timeout", type=float, default=2.0, help="Timeout for abduction E-prover calls in seconds (default: 2.0)")
+    parser.add_argument("--repair-friendly", action="store_true", help="Use repair-friendly mode (filter empty IR nodes, split conjunctions)")
     parser.add_argument("--eprover-path", help="Path to E-prover executable (optional)")
     parser.add_argument("-V","--version", action="store_true", help="Print version and module path and exit")
     args = parser.parse_args()
@@ -71,10 +100,17 @@ def main():
     issues = []
     repairs = []
     if args.diagnose or args.repair:
+        # Auto-detect goal if not provided
+        goal = args.goal or auto_detect_goal(res["argir"])
+        if goal and not args.goal:
+            print(f"\n[ARGIR] Auto-detected goal: {goal}")
+        elif not goal and args.repair:
+            print("[ARGIR] No goal detected; pass --goal to enable repairs.")
+
         print("\n[ARGIR] Running diagnosis...")
         issues = diagnose(
             res["argir"],
-            goal_id=args.goal,
+            goal_id=goal,
             semantics=args.semantics,
             eprover_path=args.eprover_path
         )
@@ -105,6 +141,7 @@ def main():
                         res["argir"],
                         issue,
                         max_atoms=args.max_abduce,
+                        timeout=args.abduce_timeout,
                         eprover_path=args.eprover_path
                     )
                     repairs.extend(issue_repairs)
@@ -116,7 +153,20 @@ def main():
 
     # Update report with diagnosis
     if issues or repairs:
-        res["report_md"] = render_diagnosis_report(issues, repairs, res["report_md"])
+        # Generate run hash and info
+        settings = {
+            "semantics": args.semantics,
+            "max_abduce": args.max_abduce,
+            "timeout": args.abduce_timeout,
+            "repair_friendly": args.repair_friendly
+        }
+        run_info = {
+            "hash": run_hash(res["argir"], settings),
+            "semantics": args.semantics,
+            "max_abduce": args.max_abduce,
+            "timeout": args.abduce_timeout
+        }
+        res["report_md"] = render_diagnosis_report(issues, repairs, res["report_md"], run_info)
 
     with open(os.path.join(args.out, "report.md"), "w", encoding="utf-8") as f: f.write(res["report_md"])
     with open(os.path.join(args.out, "fof.p"), "w", encoding="utf-8") as f: f.write("\n".join(res["fof"])+"\n")

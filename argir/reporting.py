@@ -1,13 +1,21 @@
 from __future__ import annotations
 from typing import List, Dict, Any, Optional
 import json
+import hashlib
 from .repair_types import Issue, Repair
+
+
+def run_hash(argir_obj: dict, settings: dict) -> str:
+    """Generate a stable hash of the run for reproducibility tracking."""
+    blob = json.dumps({"argir": argir_obj, "settings": settings}, sort_keys=True).encode("utf-8")
+    return hashlib.sha1(blob).hexdigest()[:12]
 
 
 def render_diagnosis_report(
     issues: List[Issue],
     repairs: List[Repair],
-    existing_report: str = ""
+    existing_report: str = "",
+    run_info: Optional[dict] = None
 ) -> str:
     """
     Generate a markdown report with issue cards and repairs.
@@ -16,6 +24,13 @@ def render_diagnosis_report(
         report = ["# ARGIR Analysis Report\n"]
     else:
         report = [existing_report]
+
+    # Add run info if provided
+    if run_info:
+        report.append(f"\n**Run:** {run_info.get('hash', 'unknown')} | ")
+        report.append(f"semantics={run_info.get('semantics', 'grounded')} | ")
+        report.append(f"max_abduce={run_info.get('max_abduce', 2)} | ")
+        report.append(f"timeout={run_info.get('timeout', 2.0)}s\n")
 
     # Add diagnosis section
     report.append("\n## Issues & Repairs\n")
