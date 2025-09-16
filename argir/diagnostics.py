@@ -296,17 +296,17 @@ def is_node_accepted_in_af(argir: ARGIR, node_id: str, semantics: str) -> bool:
     args, atts = extract_af_args_attacks(argir)
 
     if semantics == "grounded":
-        extension = af_clingo.grounded(args, atts)
+        ext = af_clingo.grounded(args, atts)
+        return node_id in ext
     elif semantics == "preferred":
-        extensions = af_clingo.preferred(args, atts)
-        extension = extensions[0] if extensions else frozenset()
+        fam = af_clingo.preferred(args, atts)
+        # credulous: exists a preferred extension containing the node
+        return any(node_id in S for S in fam)
     elif semantics == "stable":
-        extensions = af_clingo.stable(args, atts)
-        extension = extensions[0] if extensions else frozenset()
+        fam = af_clingo.stable(args, atts)
+        return any(node_id in S for S in fam)
     else:
-        extension = frozenset()
-
-    return node_id in extension
+        return False
 
 
 def get_accepted_nodes(argir: ARGIR, semantics: str) -> Set[str]:
@@ -318,11 +318,18 @@ def get_accepted_nodes(argir: ARGIR, semantics: str) -> Set[str]:
     if semantics == "grounded":
         return set(af_clingo.grounded(args, atts))
     elif semantics == "preferred":
-        extensions = af_clingo.preferred(args, atts)
-        return set(extensions[0]) if extensions else set()
+        # Union of all preferred extensions (useful for UI overlays)
+        fam = af_clingo.preferred(args, atts)
+        out: Set[str] = set()
+        for S in fam:
+            out |= set(S)
+        return out
     elif semantics == "stable":
-        extensions = af_clingo.stable(args, atts)
-        return set(extensions[0]) if extensions else set()
+        fam = af_clingo.stable(args, atts)
+        out: Set[str] = set()
+        for S in fam:
+            out |= set(S)
+        return out
 
     return set()
 

@@ -9,6 +9,7 @@ from ..core.model import ARGIR
 from ..diagnostics import extract_af_facts, is_goal_accepted
 from ..core.model import ARGIR as ARGIRModel
 from ..semantics.clingo_helpers import quote_id, parse_binary_atom
+from ..semantics.af_clingo import ENCODING as AF_ENCODING
 
 
 def enforce_goal(
@@ -152,47 +153,30 @@ def generate_asp_program(
     for attacker in candidates["attacks_goal"]:
         program.append(f"attacks_goal({quote_id(attacker)}).")
 
-    # Add the enforcement encoding
+    # Add enforcement skeleton (no semantics inside)
     encoding_path = os.path.join(os.path.dirname(__file__), "af_enforce.lp")
     with open(encoding_path, "r") as f:
         program.append(f.read())
 
-    # Add semantics-specific encoding if not grounded
-    if semantics == "preferred":
-        program.append(get_preferred_encoding())
+    # Append the appropriate semantics definition for in/1.
+    # Use admissible + maximize as a practical preferred for enforcement.
+    if semantics == "grounded":
+        program.append(AF_ENCODING["grounded"])
+    elif semantics == "preferred":
+        program.append(AF_ENCODING["admissible"])
+        # secondary objective is already in the skeleton (#maximize { in(X) }.)
     elif semantics == "stable":
-        program.append(get_stable_encoding())
+        program.append(AF_ENCODING["stable"])
+    elif semantics == "complete":
+        program.append(AF_ENCODING["complete"])
+    else:
+        # Fallback to grounded if unknown
+        program.append(AF_ENCODING["grounded"])
 
     return "\n".join(program)
 
 
-def get_preferred_encoding() -> str:
-    """
-    Return ASP encoding for preferred semantics.
-    """
-    return """
-% Preferred semantics (simplified)
-% An argument is in if it defends itself against all attacks
-defended(X) :- arg(X), not undefended(X).
-undefended(X) :- arg(X), att(Y,X), not counter_attacked(Y,X).
-counter_attacked(Y,X) :- att(Z,Y), in(Z).
-in(X) :- defended(X).
-"""
-
-
-def get_stable_encoding() -> str:
-    """
-    Return ASP encoding for stable semantics.
-    """
-    return """
-% Stable semantics
-% Extension attacks all arguments outside it
-in(X) :- arg(X), not out(X).
-out(X) :- arg(X), not in(X).
-:- in(X), in(Y), att(X,Y).
-:- out(X), not attacked_by_in(X).
-attacked_by_in(X) :- att(Y,X), in(Y).
-"""
+# Removed local, simplified encodings; reuse AF_ENCODING from af_clingo instead.
 
 
 def run_clingo_opt(asp_program: str, max_models: int = 3) -> List[Dict[str, Any]]:
@@ -206,8 +190,8 @@ def run_clingo_opt(asp_program: str, max_models: int = 3) -> List[Dict[str, Any]
         temp_file = f.name
 
     try:
-        # Run clingo with optimization
-        cmd = ["clingo", temp_file, "--opt-mode=opt", f"-n{max_models}"]
+        # Run clingo with optimization; optN enumerates all optimum models (up to -n)
+        cmd = ["clingo", temp_file, "--opt-mode=optN", f"-n{max_models}"]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
 
         # Parse output
