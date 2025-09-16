@@ -1,371 +1,269 @@
-# ARGIR: End‑to‑End Overview
+# ARGIR, Reframed: Soft IR → Strict IR → AF/FOL → Diagnosis → Repair
 
-**Purpose (one sentence):**
-ARGIR turns natural‑language (NL) arguments into a **strict, analyzable graph**, diagnoses logical issues, and—when possible—proposes **minimal, machine‑checkable repairs** that are verified with formal tools.
+Think of ARGIR as two stacked layers:
 
-**Key ideas:**
+1. **Soft IR (extraction layer)** — heuristic/LLM-ish structures directly from natural language. This layer is flexible and forgiving; it captures text spans, loosely typed predicates, tentative supports/attacks, and sometimes **implicit rule nodes** (often named `IR_*`).
+2. **Strict IR (analysis layer)** — a cleaned, strongly typed graph built *from* the soft IR. It has explicit node kinds, canonical atoms, validated edges, and is safe to “compile” into:
 
-* A **Strict IR (intermediate representation)** captures *claims/premises*, *supports/attacks*, and *content atoms* (`pred(args)`).
-* A projection to an **Abstract Argumentation Framework (AF)** (nodes = arguments, edges = attacks) lets us run **semantics** in a solver (Clingo).
-* A lowering to **First‑Order Logic (FOL)** in TPTP lets us prove or refute claims with **E‑prover**.
-* **Diagnosis** = identify issues (unsupported inference, circularity, contradictions, unreachable goals…).
-* **Repair** = propose minimal edits (add missing premise, add/remove an attack, introduce a defender) **and verify** they have the intended effect.
+   * an **AF** (Abstract Argumentation Framework) for solver‑based acceptance, and
+   * **FOL** (TPTP/FOF) for theorem proving.
 
-> **Result files:**
+**Diagnosis** runs mostly on the strict IR (+ AF/FOL projections). **Repairs** try to modify either the AF structure (enforcement) or the strict content (abduction). The **soft IR** shapes what the strict IR looks like — and that is the #1 reason repairs feel finicky.
+
+---
+
+## 1) What the Soft IR is (and isn’t)
+
+**Goal:** capture *what the author seems to argue* with minimal commitment to a formal theory.
+
+### Typical soft‑IR constructs
+
+* **Soft nodes**
+
+  * “Statement‑like” units: sentences/clauses that *look like* premises or claims.
+  * “Rule‑like” units: often created when a sentence contains cues like *if/then* or *because*. These are the `IR_*` nodes—**implicit rules** with weak structure.
+* **Soft edges**
+
+  * `support`: “X because Y”; “if P then C”; “since … therefore …”
+  * `attack`: negation, contradiction, refutation, “but”, “however”
+* **Soft atoms**
+
+  * From shallow IE over spans: `pred(args)` with constants harvested from NER or tokens; types are guesses.
+* **Metadata**
+
+  * Span offsets, scheme hints (authority/causal/analogy), and a crude **atom lexicon** (seen predicates and constants).
+
+### Why it exists
+
+* NL is messy. The soft IR lets the system **not fail** just because it can’t fully parse a rule; instead it adds a proxy node (`IR_*`) and keeps going.
+* It is the **main pipeline** for NL inputs: everything downstream depends on how well this layer approximates structure.
+
+> **Limitations of soft IR (important):**
 >
-> * `report.md` — human‑readable analysis with “Issue Cards”
-> * `issues.json` — machine‑readable diagnoses
-> * `repairs.json` — machine‑readable patches + verification
+> * **Implicit rule nodes (`IR_*`) are often empty shells.** They have no atoms or only vague ones. If projected as *arguments*, they introduce cycles and mutual attacks that **don’t correspond to the author’s reasoning**.
+> * **Conjunctions get lumped.** “P1 and P2 and P3 → C” may be represented as one multi‑premise step; repairs that want to “add just P2” can’t naturally target this.
+> * **Predicate/constant drift.** The same thing can appear with multiple names (“crime\_rate”, “crime”), making provability and attack alignment fail later.
+> * **Scheme tags are diagnostic, not proof.** A “causal” tag doesn’t give you an actual causal law the prover can use.
 
 ---
 
-## High‑Level Flow
+## 2) From Soft IR to Strict IR (the “lowering” step)
 
-```
-Natural language text
-        │
-        ▼
-  (Soft extraction)
-  ───────────────────────────────────────
-  Heuristic/LLM-ish pass produces a rough graph,
-  atoms, and (sometimes) implicit rule nodes
-  ───────────────────────────────────────
-        │
-        ▼
-    Strict IR (ARGIR JSON)
-  nodes: Premise / Inference / Claim
-  edges: support / attack
-  atoms: pred(args)
-        │
-        ├─────────────► AF projection (args, attacks)
-        │                 ► run semantics in Clingo (grounded / preferred / stable)
-        │
-        └─────────────► FOL export (TPTP)
-                          ► run E‑prover to check entailment/consistency
-        │
-        ▼
-   Diagnosis (detectors)
-        │
-        ▼
-   Repair generation
-   - AF enforcement (minimize edits)
-   - FOL abduction (add minimal premise)
-        │
-        ▼
-   Verification (Clingo/E‑prover)
-        │
-        ▼
-   Report (Issue cards + patches)
-```
+**Goal:** compile the flexible soft IR into a **validated strict graph** you can analyze.
 
----
+### What the strict IR guarantees
 
-# 1) The Strict IR (your core data model)
+* **Node kinds:**
 
-**Where to look:** `argir/core/model.py` (or equivalent `types.py`) + `argir.json` outputs.
-
-### Core objects
-
-* **Node (argument unit):**
-
-  * `Premise` (often just a fact/statement with atoms)
+  * `Premise` (facts or assumed statements)
   * `InferenceStep` (premises + optional rule ⇒ conclusion)
-  * `Claim/Conclusion` (in many codebases, the conclusion lives on the inference node; some variants have explicit claim nodes)
-  * Each node can carry **atoms** (e.g., `wet(street)`), and possibly `text` or `span` from NL.
+* **Edges:** `support` and `attack` with basic well‑formedness.
+* **Atoms:** canonicalized `pred(args)` with consistent arity and argument order.
+* **Lexicon:** the predicate set and constants that downstream tools may use.
 
-* **Edge (relation):**
+### What happens to `IR_*` here?
 
-  * `support(source → target)`
-  * `attack(source → target)` — includes `attack_kind` metadata (e.g., `contradiction`, `rebut`).
+* Best case: softened rules become **explicit** rule applications inside `InferenceStep`s (e.g., a rule schema with antecedents).
+* Common case: if there isn’t enough structure, `IR_*` remains an **intermediate** node that connects a premise‑ish text to a conclusion‑ish text.
 
-* **Atoms / Terms:**
-
-  * `Atom(pred="wet", args=[Const("street")])`
-  * Terms can be constants or (less often in practice) variables.
-
-* **Metadata:**
-
-  * `atom_lexicon`: known predicates/arity and constants the system may use.
-  * optional `goal_id` hint (which node to focus on).
-
-> **Limitation — “soft extraction” noise:**
-> The soft pass sometimes creates **implicit rule nodes** (e.g., `IR_P1`) without real content. These can complicate structure and create spurious cycles. Recent branches either collapse them in AF projection or avoid producing them.
-
----
-
-# 2) AF Projection & Semantics (Clingo)
-
-**Why:** Abstract away content to a directed graph of **arguments** and **attacks** so we can ask a solver: “Is the goal accepted?”
-
-### AF basics in code
-
-* **AF facts:**
-  `arg(a). arg(b). ...`
-  `att(a,b).` means “a attacks b”.
-* **Semantics (implemented as ASP encodings / helper library):**
-
-  * **Grounded**: skeptical, conservative (often empty when there’s mutual attack).
-  * **Preferred**: maximal admissible sets (credulous acceptance = “in at least one preferred extension”).
-  * **Stable**: strong notion (may not exist).
-
-### Enforcement (repair) idea
-
-Given an AF and a **goal** node `G`, we can ask Clingo to pick **minimal edits** (e.g., add `att(x, y)` or delete a non‑hard attack) so that `G` becomes **accepted** under a chosen semantics. Edits are optimized with `#minimize` (and sometimes with a secondary `#maximize` to prefer larger extensions when approximating preferred).
-
-**Artifacts:**
-
-* `af_enforce.lp` — enforcement skeleton (edits + optimization); semantics appended at runtime.
-* `af_enforce.py` — builds candidate edit sets, calls Clingo, parses edits into a **Patch**.
-
-> **Limitations — semantics & candidates:**
+> **Limitations of the lowering step:**
 >
-> * **Grounded vs Preferred:** Grounded is very cautious; in `A ↔ B` both can be rejected, making repairs “invisible”. Preferred (credulous) is more constructive for repairs.
-> * **Candidate pool breadth:** If you allow “any node attacks any attacker,” you may get weird but valid fixes. Most branches now **narrow** candidates to `goal → attackers(goal)` (and an optional abstract **defender** node), with a flag to widen if needed.
-> * **Hard edges:** Contradictions / explicit negations are often marked **non‑deletable**. That’s principled, but repairs must then come from **adding** counter‑attacks or defenders.
+> * If `IR_*` survives to strict IR as a **node**, your AF will later have **extra arguments** with unclear content.
+> * If antecedents are grouped into one big “premises” bag, abduction can’t target the *one* missing antecedent; it must fabricate an entire premise node with unspecified relation to the rule.
+> * If canonicalization changes predicate names (e.g., “rain” vs “raining”), a perfectly sensible abduced fact won’t match the rule head used for proving.
 
 ---
 
-# 3) FOL Export & Proofs (E‑prover)
+## 3) Projections: AF and FOL
 
-**Why:** Some issues are **content** problems (“premises don’t entail the conclusion”). We export the IR to **TPTP FOF** and ask **E‑prover** to check entailment.
+### AF (Abstract Argumentation Framework)
 
-### TPTP problem shape
+* **What we build:**
 
-* **Axioms:** facts + rule encodings (depending on your exporter)
-* **Conjecture:** the target conclusion (what we want to prove)
-* Optionally, newly proposed **hypotheses** (abduced premises) are added as additional **axioms**.
+  * `arg(X)` for strict nodes that act as arguments (often `InferenceStep` or `Premise`).
+  * `att(A,B)` when A contradicts B (either because of explicit negation or a learned rebut policy).
+* **Semantics:**
 
-E‑prover returns an SZS status like `Theorem`/`Unsatisfiable` (good), `CounterSatisfiable`, or times out.
+  * **Grounded** (skeptical; conservative)
+  * **Preferred** (credulous; larger admissible sets)
+  * **Stable** (strong; may not exist)
+* **Enforcement (repairs):** Ask Clingo to choose minimal edits to make a **goal** node accepted.
 
-> **Limitations — exporter coverage:**
-> If the exporter only dumps **conclusions** but not **rules/backing**, E‑prover has nothing to *reason with*—it can only prove the conjecture if the hypothesis is essentially the conjecture itself. Newer branches wire the **official exporter** that includes rules/defeaters when available.
-
----
-
-# 4) Diagnosis (what “issues” we detect)
-
-**Where:** `argir/diagnostics.py`
-
-### Built‑in detectors
-
-1. **Unsupported inference**
-   Premises + rule (if any) do **not** entail the conclusion.
-   Signals: E‑prover cannot prove; AF rejects the node.
-
-2. **Circular support**
-   A node’s acceptance depends (transitively) on itself through support/derivation cycles.
-
-3. **Contradiction unresolved**
-   Two accepted (or key) nodes clash (explicit contradiction or strong rebut) with no resolution.
-
-4. **Weak scheme instantiation**
-   A recognized argumentation scheme (authority, causal, analogy, …) has unsatisfied **critical questions** (missing backing, scope, confounders).
-
-5. **Goal unreachable**
-   The goal is **not credulously accepted** under the chosen semantics.
-
-Each detector emits an `Issue` with: `type`, `target_node_ids`, `evidence`, `detector_name`.
-
-> **Limitations — detector truthiness:**
+> **AF limitations that block repairs:**
 >
-> * **Unsupported inference** can be raised either because content is missing (true gap) or because the **exporter omitted rules** (false positive).
-> * **Goal unreachable** depends on semantics; under grounded, mutual attacks often make the goal “not accepted,” but that’s a modeling choice, not necessarily a flaw.
+> * **Grounded is often empty** in mutual attacks (`A ↔ B`). Your “goal unreachable” detector may not fire or may provide no constructive move.
+> * **Hard edges.** If contradiction edges are flagged *non‑deletable*, and your candidate pool does **not** include *add‑attack* moves (or includes them too broadly), the solver either has **no solution** or returns **odd fixes**.
+> * **`IR_*` as arguments.** If you project `IR_*` nodes as full arguments, you can create cycles/attacks that are artifacts, not real disagreements. Repairs try to fix those artifacts, not the actual content gap.
 
----
+### FOL (First‑Order Logic, TPTP/FOF via exporter)
 
-# 5) Repair generation (two engines)
+* **What we build:**
 
-## 5.1 AF enforcement (structural repairs)
+  * Axioms: facts + (when available) rules exported from strict IR.
+  * Conjecture: the target conclusion (or sub‑claim) we want to prove.
+* **Abduction (repairs):** We add 1–2 **hypothesis atoms** (as extra axioms) and ask **E‑prover** to prove the conjecture. If it succeeds—and remains **consistent**—we create a new **Premise** that supports the inference.
 
-**Goal:** minimally change the **attack graph** so the goal becomes accepted.
-
-* **Edit types**:
-
-  * `add_att(x, attacker_of_goal)` — “counter‑attack”
-  * `use_defender` + `add_att(def, attacker)` — “introduce an abstract defender”
-  * `del_att(x, y)` — remove an attack (**often blocked** for hard edges)
-* **Optimization:** `#minimize` counts edits; optional `#maximize { in(X) }` biases toward preferred-like sets.
-* **Verification:** Re‑run semantics on the patched AF; record optimality (“OPTIMUM FOUND”).
-
-> **Limitations — principled but narrow:**
-> AF enforcement cannot **invent content**. It can only re‑wire attacks. If the real issue is “missing premise,” AF may suggest adding a counter‑attack that is structurally valid but **content‑opaque**. That’s why AF enforcement is best for **conflict management**, not missing support.
-
-## 5.2 FOL abduction (content repairs)
-
-**Goal:** add **minimal premise(s)** (1–2 atoms) that make the conclusion **provable**.
-
-* **Candidate generation:**
-
-  * Use **predicates/arity** and **constants** already seen in the graph (and lexicon).
-  * Prefer atoms that **share constants** with the target conclusion (“anchored”).
-  * Deterministic order: 1‑atom first, then small 2‑atom combos.
-
-* **Verification:**
-
-  * Build the **TPTP** problem with your official exporter (axioms + conjecture).
-  * Add hypothesis atoms as **axioms** and call **E‑prover** with a **short timeout**.
-  * **Consistency guard:** also try to prove `$false`; if it’s provable, **reject** the hypothesis.
-
-* **Patch:**
-
-  * Add a **Premise** node with those atoms.
-  * Add a **support** edge to the target inference.
-  * (Optional) Recompute AF acceptance after the patch; include both AF and FOL results in the card.
-
-> **Limitations — proof availability:**
+> **FOL limitations that block repairs:**
 >
-> * Needs E‑prover installed to be fully trustworthy; otherwise you fall back to heuristics (clearly label as “unverified”).
-> * If the exporter doesn’t include rules, only trivial abductions (e.g., “add exactly the claim”) will prove.
-> * Even when provable, **plausibility** is not guaranteed—enforcing plausibility requires templates/schemes or typed domains.
+> * **Exporter without rules.** If the exporter doesn’t include usable rules, E‑prover can only prove the conjecture when the hypothesis is literally the conjecture itself—trivial and unhelpful.
+> * **Predicate drift.** If the rule says `raining(x) → wet(x)` but the target concludes `wet_streets`, there’s no bridge rule; abduction can’t find a 1‑atom hypothesis that makes the proof.
+> * **Timeouts.** A 1–2s prover cutoff is healthy for UX but means difficult proofs won’t appear as repairs.
+> * **No types.** Hypothesis enumeration over a large, untyped lexicon produces many implausible candidates; after pruning you might simply not test the one that works.
 
 ---
 
-# 6) The “Issue Card” (what shows in the UI / report)
+## 4) Diagnosis (why you *see* issues even when you get **no repairs**)
 
-Each card should include:
+Detectors do **not** require an available fix; they’re checking *properties*:
 
-* **Issue**: type, short explanation, evidence (e.g., cycle path, conflicting atoms, failed CQs).
-* **Minimal repair**:
+* **Unsupported inference:** “Premises don’t entail conclusion” (or no premises).
+  ↳ True even when abduction can’t find a safe/short hypothesis.
+* **Circular support:** “You depend on yourself.”
+  ↳ True even if AF enforcement is restricted (e.g., hard edges only).
+* **Contradiction unresolved:** “Two nodes clash without resolution.”
+  ↳ True even if you forbid deleting the contradictory edge and don’t allow adding counter‑attacks.
+* **Goal unreachable:** “Goal not accepted under chosen semantics.”
+  ↳ True under grounded in many symmetric graphs; still no repair if the candidate pool is empty or only contains forbidden edits.
 
-  * **Patch JSON** (machine‑applyable): added nodes/edges or AF edits.
-  * **Cost & optimality** (AF repairs): number of edits; “OPTIMUM FOUND”.
-  * **Verification**:
-
-    * AF semantics **before/after** and which semantics were used.
-    * FOL status (E‑prover Theorem/Unsat) and **timing**.
-* **Alternatives** (if there are ties; up to 3).
-
-> **Limitation — expectation management:**
-> For natural language inputs, many cards will say **“No automated repair available”**. That’s honest—most real arguments need **human judgment** for missing content. The card should explain *why* no edit was suggested (e.g., all edges are hard; E‑prover could not find a proof with ≤2 atoms; multiple contradictions).
+**So it’s entirely consistent to have: issues ✅, repairs ❌.** That’s not a bug; it’s a statement about **repairability** under your current constraints.
 
 ---
 
-# 7) CLI & Quick Recipes
+## 5) Repair engines (and their **preconditions**)
 
-Common runs:
+### 5.1 AF enforcement (structural)
 
-```bash
-# 1) Diagnose only (natural language input)
-python -m argir.cli input.txt --out out --soft --diagnose
+**You get a repair only if ALL are true:**
 
-# 2) Diagnose + attempt repairs (grounded everywhere)
-python -m argir.cli input.txt --out out --soft --diagnose --repair \
-  --diagnostics-semantics grounded --repair-semantics grounded
+1. **Goal is identifiable** (CLI `--goal` or auto‑detected).
+2. **There exists a small edit set** (within your `max_af_edits`) that makes the goal **accepted** under the chosen semantics.
+3. **Candidate pool is non‑empty** (e.g., at least `goal → attacker(goal)` allowed, or a **defender** is permitted).
+4. **Hard‑edge policy allows a change** (if all relevant edges are “hard” and additions are disabled, no solution).
+5. **Semantics is constructive** (preferred credulous is often needed for mutual‑attack motifs).
 
-# 3) Diagnose grounded, but repair under preferred (more constructive repairs)
-python -m argir.cli input.txt --out out --soft --diagnose --repair \
-  --diagnostics-semantics grounded --repair-semantics preferred
+If any is false, you’ll see **no structural repair**.
 
-# 4) Focus on a known goal id (structured JSON)
-python -m argir.cli argir.json --out out --diagnose --repair --goal C1
+### 5.2 FOL abduction (content)
 
-# 5) Demo-friendly toggles (if available in your branch)
-python -m argir.cli input.txt --out out --soft --diagnose --repair \
-  --repair-friendly-mode
-```
+**You get a repair only if ALL are true:**
 
-**Outputs to inspect:**
+1. **Exporter provides a bridge** from premises to the target (rules or facts the prover can use).
+2. **Lexicon alignment**: the hypothesis predicates/arity/constants match what the rules expect.
+3. **Search finds a working hypothesis** within your `max_atoms` and candidate budget.
+4. **E‑prover can solve within timeout**.
+5. **Consistency**: the hypothesis doesn’t make `$false` provable.
 
-* `out/report.md` — read the Issue Cards.
-* `out/issues.json`, `out/repairs.json` — for programmatic analysis.
-* Clingo/E‑prover logs in the verification artifacts (useful for debugging).
-
-> **Limitation — “preferred” variance by branch:**
-> Some branches had an **over‑simplified preferred encoding**. Newer updates reuse a single semantics source (admissible + `#maximize`) and enforce **credulous** acceptance. If repairs don’t show up under preferred, revert to grounded or check your semantics include/wiring.
+If any is false, you’ll see **no content repair**.
 
 ---
 
-# 8) Testing & Reproducibility
+## 6) Why repairs have been “finnicky” in practice (root causes → fixes)
 
-### Unit tests
-
-* **Detectors**: craft tiny graphs (JSON fixtures) to trigger each issue type.
-
-* **AF enforcement**:
-
-  * Tiny AF with `att(A,G)` only → expect `add_att(G,A)` (cost = 1).
-  * Odd cycle → expect `use_defender` + one attack (cost = 1–2).
-
-* **FOL abduction**:
-
-  * Rule: `raining → wet`; goal: `wet(street)` → expect hypothesis `raining(street)` or a 0‑ary `raining` depending on your signature.
-
-### Property tests (high value)
-
-* **Minimality** (small AFs): brute‑force edit sets of size ≤ K and assert the solver’s cost equals the true minimum.
-* **Idempotence**: after applying a chosen repair, re‑diagnose; the same issue should not reappear.
-* **Determinism**: run abduction twice with the same input; the top‑3 hypotheses must match.
-
-> **Limitation — solver nondeterminism:**
-> Clingo is deterministic given the same facts, but different **candidate pool orders** can change the first optimum model printed. Always **sort** facts and candidates you emit to ASP. For abduction, **sort predicates/constants** and **anchor** to target constants.
+| Symptom                                        | Root cause in the pipeline                                                | What to do (minimal)                                                                                                                                                |
+| ---------------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Issues detected but **no repairs**             | AF: grounded semantics + mutual attacks; hard edges; empty candidate pool | For enforcement: use **preferred (credulous)** for repair; allow `goal→attackers` (and optionally a single **defender**); keep hard edges but **add**, don’t delete |
+| Abduction **rarely** offers a fix              | Exporter lacks **rules**; predicate drift; E‑prover not installed         | Export FOL rules for inference steps; **canonicalize** predicates; install E‑prover; shorten search to **anchored** hypotheses                                      |
+| Abduction offers **nonsense**                  | Lexicon too broad; no types                                               | Limit to **seen predicates/constants**; prefer constants appearing in the **target**; add light types when available                                                |
+| Enforcement produces **weird** counter‑attacks | Candidate pool too broad (“anyone can attack anyone”)                     | Default to `goal→attackers` (+ defender), expose a `--widen` flag only if needed                                                                                    |
+| AF full of **spurious cycles**                 | `IR_*` nodes projected as arguments                                       | In AF projection, **don’t create arg()** for empty `IR_*`; treat them as **edge warrants** (metadata)                                                               |
+| **Unsupported inference** but no abduction fix | The gap is **world knowledge** or multi‑premise; proof too hard           | Increase `max_atoms` to 2; or create a **templated premise** via scheme tag (still verify with E‑prover)                                                            |
 
 ---
 
-# 9) Troubleshooting Guide
+## 7) Soft‑IR–first: how to **shape** extraction to maximize repairs
 
-**“No automated repair available” (common)**
+1. **Prefer single‑step rules**: When parsing *if/then* sentences, map them to a single `InferenceStep` with **explicit antecedents**, not a chain of `IR_*` nodes.
+2. **Split conjunctions**: Represent `P1 ∧ P2 → C` as **two** supports (`P1 ⇒ C` and `P2 ⇒ C`), or at least make `P1` and `P2` identifiable premises. This lets abduction add exactly the missing one.
+3. **Canonicalize predicates early**: Decide that `raining` is the predicate, not `rain` or `is_rain`, and normalize consistently.
+4. **Keep contradictions explicit**: Mark **what negates what** (those are good *attacks*), but don’t project `IR_*` as independent **arguments** in AF unless they carry atoms.
+5. **Seed the lexicon**: Copy seen predicates and constants into `metadata.atom_lexicon`. Abduction relies on this to propose meaningful, provable hypotheses.
+6. **Tag schemes (optional)**: If you detect “argument from authority” or “causal,” store that as soft metadata; abduction can use it to prioritize plausible hypotheses (still verified).
 
-* Check semantics: grounded can be too strict; try repair under preferred.
-* Hard edges: if all attackers of the goal are **hard**, and you disallow additions, nothing can change. Allow `add_att(goal, attacker)` or enable a single **defender**.
-* Abduction: if E‑prover is missing (or exporter omitted rules), most content repairs will fail. Install E‑prover and ensure your exporter emits rules.
-
-**“Preferred repair didn’t ensure acceptance”**
-
-* Make sure the ASP program includes **credulous acceptance**: `:- goal(G), not in(G).`
-* For preferred: use **admissible** encoding + `#maximize { in(X) }` or a correct preferred encoding, and ensure you check **credulous** membership (exists an extension), not skeptical.
-
-**“Repairs look weird (unrelated node attacks attacker)”**
-
-* Your **candidate pool** is too broad. Restrict to `goal → attackers(goal)` and an optional defender, add a CLI flag to widen only if needed.
-
-**“FOL abduction crashes or times out”**
-
-* Lower `max_atoms` to 1 and reduce constants.
-* Increase E‑prover timeout slightly (e.g., 2→3s) only for demonstration; keep default low.
+> **Limitation:** These are extraction policies, not logical truths. They will **bias** what repairs are possible. That’s intentional—your aim is a *repair‑friendly* strict IR.
 
 ---
 
-# 10) How this differs from the older **Argument Debugger**
+## 8) A concrete, reproducible **debug playbook** when repairs don’t appear
 
-* The older repo combined LLM extraction with ASP reasoning and hand‑crafted repairs.
-* **ARGIR** formalizes a **strict IR**, provides **AF and FOL exports**, and adds a **principled** diagnosis/repair layer with **verification**.
-* You can port **schemes & critical questions** from the older repo to ARGIR as **detectors**; but **repairs** in ARGIR are now **verified** (Clingo/E‑prover), not only suggested.
+1. **Is there a goal?**
 
----
+   * If not passed on CLI, pick one with highest incoming `support`.
+2. **AF quick scan**
 
-# 11) A minimal end‑to‑end example (that always works)
+   * Count attackers of goal; list which are **hard**.
+   * If all attackers are hard and additions are disabled → no AF repair is possible.
+3. **Try enforcement under preferred (credulous)**
 
-### Text
+   * If still no solution, print the **candidate pool**; if empty, enable `goal→attackers` and a **defender**.
+4. **Exporter sanity**
 
-> “If it rains, streets get wet. Therefore, the street is wet.”
+   * Does the FOL axioms file contain any **rules** that can link premises to the goal? If not, abduction is limited.
+5. **Abduction inputs**
 
-### Expected pipeline behavior
+   * Print the **predicate/arity** map and the **constants**. Do they match the goal’s head? If not, canonicalize.
+6. **E‑prover path and timeout**
 
-* **Soft → Strict IR:** one inference node `C1` with rule `raining(x) → wet(x)`, missing premise `raining(street)`.
-* **Diagnosis:** `unsupported_inference` for `C1`.
-* **Repair (FOL abduction):** propose `raining(street)` (1 atom).
-
-  * **E‑prover:** Theorem in \~0.1–1.0s (depending on setup).
-  * **Patch:** add premise node with `raining(street)`; support it into `C1`.
-* **Report:** Issue Card shows FOL entailed ✅; AF grounded acceptance likely improves ✅.
+   * Verify E‑prover is called; try a 2–3s timeout for the test; read SZS status in the artifacts.
 
 ---
 
-# 12) Hard limitations to keep in mind
+## 9) A tiny end‑to‑end example (designed to always yield a repair)
 
-* **Natural language is messy.** Even with a clean IR, many real claims require **judgment** or **external evidence**—automated repairs will be sparse. The UI must normalize “No automated repair” as a common, honest outcome.
-* **Preferred semantics is a modeling choice.** It’s excellent for constructive repairs, but different encodings exist. Be explicit about **credulous vs skeptical** acceptance and document the semantics used on each card.
-* **Hard edges reduce edit space.** Marking contradictions as non‑deletable is principled, but it forces the solver to **add** defenses rather than simplify. Provide a *demo‑only* toggle if you must show deletions.
-* **E‑prover is the backbone for content repairs.** Without it (or without rules in your exporter), abduction becomes a heuristic. Always label verification status clearly.
+**Text:**
+“If it rains, the street gets wet. Therefore, the street is wet.”
+
+**Soft IR (what you want):**
+
+* Premise‑like atom candidates: `raining(street)`, `wet(street)`
+* One `InferenceStep` C1: antecedent pattern `raining(x) → wet(x)`; **no premise** attached for `raining(street)`
+* No `IR_*` nodes projected as arguments
+
+**Strict IR:**
+
+* Node C1 with rule (`raining(x) → wet(x)`), conclusion `wet(street)`, **missing premise**
+* No contradictions
+
+**Diagnosis:** `unsupported_inference` on C1
+
+**Repair (abduction):** Add **one** premise `raining(street)`
+
+* **E‑prover** proves `wet(street)` under the exported rule
+* **Patch:** add new Premise node with `raining(street)`, support edge to C1
+* **AF:** grounded acceptance of C1 improves (optional check)
 
 ---
 
-## Quick “what to focus on next” (if you want a short roadmap)
+## 10) What to upgrade first if you want repairs to show up more
 
-* **Abduction polish (high ROI):** deterministic enumeration + consistency guard + exporter‑backed proofs (many branches already have some or all of this—consolidate into one file).
-* **Candidate pool discipline:** default narrow (`goal→attackers`, one optional defender), with a `--widen` flag.
-* **Report artifacts:** always show semantics used, cost/optimality, and E‑prover status.
+1. **Soft‑IR shaping** (extraction policy):
+
+   * Don’t project empty `IR_*` as AF arguments; split conjunctions; canonicalize predicates.
+2. **Abduction v2** (deterministic + exporter‑backed):
+
+   * Use the official FOL exporter (include rules), anchor hypotheses to the goal’s constants, add a **consistency guard**.
+3. **Enforcement defaults**:
+
+   * Use **preferred (credulous)** for repair (keep grounded for display); allow `goal→attackers` and one **defender**; keep **hard edges non‑deletable**.
+
+These three changes alone will convert a large chunk of “diagnosed but unrepaired” cases into **actionable, minimal, verified repairs**—without hand‑crafting strict JSON.
 
 ---
 
-If you want, I can tailor this doc into your repository as `docs/ARCHITECTURE.md` and add small “Limitations” callouts inline where your code is today (e.g., next to abduction, enforcement, exporter).
+## 11) FAQ (short)
+
+**Q: Why does diagnosis say “unsupported inference” if abduction can’t fix it?**
+A: Because the check is correct: your current premises don’t entail the conclusion. Abduction fails when there’s no short, safe hypothesis the prover can use (missing rules, mismatched predicates, or too hard within the timeout).
+
+**Q: Why not relax hard edges so AF repairs show up?**
+A: You can, but then the solver will “fix” contradictions by deleting them, which is usually misleading. Better to **add** a defender/counter‑attack or fall back to human judgment.
+
+**Q: Why does preferred semantics matter?**
+A: It allows **credulous** acceptance in symmetric graphs where grounded is empty, enabling constructive AF repairs (especially counter‑attacks) without lying about sceptical status in the Diagnosis view.
+
+---
+
+### Bottom line
+
+* The **soft IR is the main pipeline**: the shapes it creates **directly determine** whether AF enforcement and FOL abduction even have a chance.
+* Repairs are “finnicky” not because the engines are wrong, but because **repairability has preconditions** (goal/semantics/candidates for AF; rules/lexicon/timeout for FOL) that natural language **rarely** satisfies out of the box.
+* Make the soft IR **repair‑friendly** (simple rules, split conjunctions, canonicalization), and adopt **deterministic, exporter‑backed abduction** + **preferred‑based enforcement**. You’ll still show “No automated repair” often—that’s honest—but you’ll also get **clear, minimal, verified fixes** in the cases where automation should work.
