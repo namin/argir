@@ -94,47 +94,6 @@ export const DiagnosisDisplay: React.FC<DiagnosisDisplayProps> = ({ issues, repa
                 </div>
               )}
 
-              {issue.evidence && (
-                <details className="evidence-details">
-                  <summary>Evidence</summary>
-                  <div className="evidence-content">
-                    {issue.evidence.cycle_path && (
-                      <div>
-                        <strong>Cycle:</strong> {issue.evidence.cycle_path}
-                      </div>
-                    )}
-                    {issue.evidence.no_premises && (
-                      <div>
-                        <strong>Problem:</strong> No premises provided for conclusion
-                      </div>
-                    )}
-                    {issue.evidence.conflicting_atoms && (
-                      <div>
-                        <strong>Conflicting statements:</strong>
-                        <ul>
-                          {issue.evidence.conflicting_atoms.map((conflict: any, idx: number) => (
-                            <li key={idx}>
-                              Node {conflict.node}: {conflict.atom.pred}
-                              {conflict.atom.negated ? ' (negated)' : ''}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                    {issue.evidence.missing_critical_questions && (
-                      <div>
-                        <strong>Missing critical questions:</strong>
-                        <ul>
-                          {issue.evidence.missing_critical_questions.map((q: string, idx: number) => (
-                            <li key={idx}>{q}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </div>
-                </details>
-              )}
-
               {issueRepairs.length > 0 ? (
                 <div className="repairs-section">
                   <h5>Proposed Repairs</h5>
@@ -193,14 +152,14 @@ export const DiagnosisDisplay: React.FC<DiagnosisDisplayProps> = ({ issues, repa
                       {repair.verification && (
                         <div className="verification">
                           <strong>Verification:</strong>
-                          {repair.verification.af_goal_accepted ? (
-                            <span className="verified">✅ Goal accepted</span>
+                          {repair.verification.fol_entailed ? (
+                            <span className="verified">✅ FOL verified</span>
                           ) : (
-                            <span className="not-verified">❌ Goal not accepted</span>
+                            <span className="not-verified">❌ FOL failed</span>
                           )}
-                          {repair.verification.fol_entailed !== null && (
-                            <span className="fol-status">
-                              {repair.verification.fol_entailed ? ' FOL ✅' : ' FOL ❌'}
+                          {repair.verification.af_goal_accepted !== null && !repair.verification.af_goal_accepted && (
+                            <span className="af-status" title="No clear goal was identified for AF acceptance checking">
+                              ⚠️ AF goal not set
                             </span>
                           )}
                         </div>
