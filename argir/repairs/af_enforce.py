@@ -4,10 +4,11 @@ import uuid
 import subprocess
 import tempfile
 import os
-from ..types import Issue, Repair, Patch, Verification
+from ..repair_types import Issue, Repair, Patch, Verification
 from ..core.model import ARGIR
 from ..diagnostics import extract_af_facts, is_goal_accepted
 from ..core.model import ARGIR as ARGIRModel
+from ..semantics.clingo_helpers import quote_id, parse_binary_atom
 
 
 def enforce_goal(
@@ -130,12 +131,6 @@ def generate_asp_program(
     """
     program = []
 
-    # Helper to quote IDs if needed
-    def quote_id(id_str):
-        if not id_str[0].islower() or any(c in id_str for c in '-_'):
-            return f'"{id_str}"'
-        return id_str
-
     # Add base AF facts
     for fact in af_facts:
         # Convert arg() to arg0() and att() to att0()
@@ -229,15 +224,21 @@ def run_clingo_opt(asp_program: str, max_models: int = 3) -> List[Dict[str, Any]
                 atoms = line.strip().split()
                 for atom in atoms:
                     if atom.startswith("del_att("):
-                        parts = atom[8:-1].split(",")
-                        if "del_att" not in current_model:
-                            current_model["del_att"] = []
-                        current_model["del_att"].append((parts[0], parts[1]))
+                        try:
+                            src, tgt = parse_binary_atom(atom, "del_att")
+                            if "del_att" not in current_model:
+                                current_model["del_att"] = []
+                            current_model["del_att"].append((src, tgt))
+                        except ValueError:
+                            pass  # Skip malformed atoms
                     elif atom.startswith("add_att("):
-                        parts = atom[8:-1].split(",")
-                        if "add_att" not in current_model:
-                            current_model["add_att"] = []
-                        current_model["add_att"].append((parts[0], parts[1]))
+                        try:
+                            src, tgt = parse_binary_atom(atom, "add_att")
+                            if "add_att" not in current_model:
+                                current_model["add_att"] = []
+                            current_model["add_att"].append((src, tgt))
+                        except ValueError:
+                            pass  # Skip malformed atoms
                     elif atom == "use_defender":
                         current_model["use_defender"] = True
                     elif atom.startswith("in("):

@@ -2,9 +2,10 @@ from __future__ import annotations
 from typing import List, Set, Tuple, Optional, Dict, Any
 import uuid
 import networkx as nx
-from .types import Issue
+from .repair_types import Issue
 from .core.model import ARGIR, InferenceStep, NodeRef
 from .semantics import af_clingo
+from .semantics.clingo_helpers import quote_id
 from .fol.eprover import call_eprover
 
 
@@ -338,12 +339,6 @@ def extract_af_facts(argir: ARGIR) -> List[str]:
     Extract AF facts from ARGIR for clingo processing.
     """
     facts = []
-
-    # Helper to quote IDs if needed for Clingo
-    def quote_id(id_str):
-        if not id_str[0].islower() or any(c in id_str for c in '-_'):
-            return f'"{id_str}"'
-        return id_str
 
     # Add argument facts
     for node in argir.graph.nodes:

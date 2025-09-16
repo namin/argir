@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import List, Dict, Any, Optional
 import json
-from .types import Issue, Repair
+from .repair_types import Issue, Repair
 
 
 def render_diagnosis_report(

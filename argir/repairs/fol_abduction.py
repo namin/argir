@@ -4,7 +4,7 @@ import uuid
 import itertools
 import tempfile
 import os
-from ..types import Issue, Repair, Patch, Verification
+from ..repair_types import Issue, Repair, Patch, Verification
 from ..core.model import ARGIR, Statement, Atom, Term, InferenceStep
 from ..fol.eprover import call_eprover
 
