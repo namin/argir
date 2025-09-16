@@ -2,6 +2,10 @@ from __future__ import annotations
 import argparse, os, json, sys
 import argir as _argir_pkg
 from .pipeline import run_pipeline, run_pipeline_soft
+from .diagnostics import diagnose
+from .repairs.af_enforce import enforce_goal
+from .repairs.fol_abduction import abduce_missing_premises
+from .reporting import render_diagnosis_report, save_repairs_json
 
 def main():
     parser = argparse.ArgumentParser(description=f"ARGIR pipeline (v{_argir_pkg.__version__})")
@@ -12,6 +16,12 @@ def main():
     parser.add_argument("--strict-fail", action="store_true", help="Fail on strict validation errors (for CI/CD)")
     parser.add_argument("--soft", action="store_true", help="Use soft IR extraction with deterministic canonicalization")
     parser.add_argument("--k-samples", type=int, default=1, help="Number of soft IR samples to try (picks best)")
+    parser.add_argument("--diagnose", action="store_true", help="Detect issues in the argument structure")
+    parser.add_argument("--repair", action="store_true", help="Generate and verify repairs for detected issues")
+    parser.add_argument("--semantics", choices=["grounded", "preferred", "stable"], default="grounded", help="AF semantics to use (default: grounded)")
+    parser.add_argument("--max-af-edits", type=int, default=2, help="Maximum AF edits for repair (default: 2)")
+    parser.add_argument("--max-abduce", type=int, default=2, help="Maximum atoms for abduction (default: 2)")
+    parser.add_argument("--eprover-path", help="Path to E-prover executable (optional)")
     parser.add_argument("-V","--version", action="store_true", help="Print version and module path and exit")
     args = parser.parse_args()
 
@@ -56,6 +66,58 @@ def main():
             sys.exit(1)
     os.makedirs(args.out, exist_ok=True)
     with open(os.path.join(args.out, "argir.json"), "w", encoding="utf-8") as f: json.dump(res["argir"], f, indent=2)
+
+    # Run diagnosis if requested
+    issues = []
+    repairs = []
+    if args.diagnose or args.repair:
+        print("\n[ARGIR] Running diagnosis...")
+        issues = diagnose(
+            res["argir"],
+            goal_id=args.goal,
+            semantics=args.semantics,
+            eprover_path=args.eprover_path
+        )
+
+        print(f"[ARGIR] Found {len(issues)} issue(s)")
+
+        # Save issues
+        with open(os.path.join(args.out, "issues.json"), "w", encoding="utf-8") as f:
+            json.dump([issue.model_dump() for issue in issues], f, indent=2)
+
+        # Generate repairs if requested
+        if args.repair and issues:
+            print("\n[ARGIR] Generating repairs...")
+            for issue in issues:
+                print(f"  • Repairing {issue.id}: {issue.type}")
+
+                if issue.type in ["goal_unreachable", "contradiction_unresolved"]:
+                    issue_repairs = enforce_goal(
+                        res["argir"],
+                        issue,
+                        semantics=args.semantics,
+                        max_edits=args.max_af_edits
+                    )
+                    repairs.extend(issue_repairs)
+
+                if issue.type in ["unsupported_inference", "weak_scheme_instantiation"]:
+                    issue_repairs = abduce_missing_premises(
+                        res["argir"],
+                        issue,
+                        max_atoms=args.max_abduce,
+                        eprover_path=args.eprover_path
+                    )
+                    repairs.extend(issue_repairs)
+
+            print(f"[ARGIR] Generated {len(repairs)} repair(s)")
+
+            # Save repairs
+            save_repairs_json(issues, repairs, os.path.join(args.out, "repairs.json"))
+
+    # Update report with diagnosis
+    if issues or repairs:
+        res["report_md"] = render_diagnosis_report(issues, repairs, res["report_md"])
+
     with open(os.path.join(args.out, "report.md"), "w", encoding="utf-8") as f: f.write(res["report_md"])
     with open(os.path.join(args.out, "fof.p"), "w", encoding="utf-8") as f: f.write("\n".join(res["fof"])+"\n")
     with open(os.path.join(args.out, "draft.json"), "w", encoding="utf-8") as f: json.dump(res.get("draft", {}), f, indent=2)

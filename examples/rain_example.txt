@@ -1,0 +1,3 @@
+If it rains, the streets get wet.
+The streets are wet.
+Therefore, it must have rained.
