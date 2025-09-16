@@ -13,6 +13,10 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from argir.pipeline import run_pipeline, run_pipeline_soft
 from argir.nlp.llm import set_request_api_key
+from argir.diagnostics import diagnose
+from argir.repairs.af_enforce import enforce_goal
+from argir.repairs.fol_abduction import abduce_missing_premises
+from argir.reporting import render_diagnosis_report
 import argir as _argir_pkg
 
 app = FastAPI(title="ARGIR API", version=_argir_pkg.__version__)
@@ -32,6 +36,11 @@ class ArgirRequest(BaseModel):
     use_soft: bool = False
     k_samples: int = 1
     api_key: Optional[str] = None  # For Gemini API key
+    enable_diagnosis: bool = False  # Enable issue detection
+    enable_repair: bool = False  # Enable repair generation
+    semantics: str = "grounded"  # AF semantics for diagnosis
+    max_af_edits: int = 2  # Maximum AF edits for repair
+    max_abduce: int = 2  # Maximum atoms for abduction
 
 @app.get("/api/health")
 def health():
@@ -69,10 +78,52 @@ def analyze_arguments(req: ArgirRequest, x_api_key: Optional[str] = Header(None)
                 goal_id=req.goal_id
             )
 
+        # Run diagnosis if requested
+        issues = []
+        repairs = []
+
+        if req.enable_diagnosis or req.enable_repair:
+            try:
+                # Run diagnosis
+                issues = diagnose(
+                    result["argir"],
+                    goal_id=req.goal_id,
+                    semantics=req.semantics
+                )
+
+                # Generate repairs if requested
+                if req.enable_repair and issues:
+                    for issue in issues:
+                        if issue.type in ["goal_unreachable", "contradiction_unresolved"]:
+                            issue_repairs = enforce_goal(
+                                result["argir"],
+                                issue,
+                                semantics=req.semantics,
+                                max_edits=req.max_af_edits
+                            )
+                            repairs.extend(issue_repairs)
+
+                        if issue.type in ["unsupported_inference", "weak_scheme_instantiation"]:
+                            issue_repairs = abduce_missing_premises(
+                                result["argir"],
+                                issue,
+                                max_atoms=req.max_abduce
+                            )
+                            repairs.extend(issue_repairs)
+            except Exception as e:
+                # Log but don't fail the entire request
+                print(f"Diagnosis/repair error: {e}")
+
+        # Update the report with diagnosis results
+        if issues or repairs:
+            result["report_md"] = render_diagnosis_report(issues, repairs, result.get("report_md", ""))
+
         # Include validation warnings if present
         response = {
             "success": True,
-            "result": result
+            "result": result,
+            "issues": [issue.model_dump() for issue in issues] if issues else [],
+            "repairs": [repair.model_dump() for repair in repairs] if repairs else []
         }
 
         # Handle validation issues

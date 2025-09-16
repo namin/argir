@@ -3,6 +3,7 @@ import './App.css';
 import { TabContainer } from './components/TabContainer';
 import { ResultDisplay } from './components/ResultDisplay';
 import { ArgumentGraph } from './components/ArgumentGraph';
+import { DiagnosisDisplay } from './components/DiagnosisDisplay';
 
 type ArgirResult = {
   success: boolean;
@@ -19,6 +20,22 @@ type ArgirResult = {
     fol_summary?: any;
     validation_issues?: any[];
   };
+  issues?: Array<{
+    id: string;
+    type: string;
+    target_node_ids: string[];
+    evidence: any;
+    detector_name: string;
+    notes?: string;
+  }>;
+  repairs?: Array<{
+    id: string;
+    issue_id: string;
+    kind: string;
+    patch: any;
+    cost: number;
+    verification: any;
+  }>;
   validation?: {
     errors?: Array<{
       code: string;
@@ -43,6 +60,8 @@ function App() {
   const [useSoft, setUseSoft] = useState(true);
   const [kSamples, setKSamples] = useState(1);
   const [apiKey, setApiKey] = useState('');
+  const [enableDiagnosis, setEnableDiagnosis] = useState(false);
+  const [enableRepair, setEnableRepair] = useState(false);
 
   const [result, setResult] = useState<ArgirResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -90,6 +109,11 @@ function App() {
           use_soft: useSoft,
           k_samples: kSamples,
           api_key: apiKey.trim() || null,
+          enable_diagnosis: enableDiagnosis,
+          enable_repair: enableRepair,
+          semantics: 'grounded',
+          max_af_edits: 2,
+          max_abduce: 2,
         }),
       });
 
@@ -216,7 +240,7 @@ function App() {
               </div>
 
               {useSoft && (
-                <div className="form-group soft-options">
+                <div className="form-group soft-options" style={{ marginLeft: '2rem', marginTop: '0.5rem', marginBottom: '1rem' }}>
                   <label htmlFor="k-samples">Number of samples:</label>
                   <input
                     id="k-samples"
@@ -227,6 +251,35 @@ function App() {
                     max="10"
                   />
                   <small>Try multiple extractions and pick the best (1-10)</small>
+                </div>
+              )}
+
+              <div className="checkbox-row">
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={enableDiagnosis}
+                    onChange={(e) => {
+                      setEnableDiagnosis(e.target.checked);
+                      if (!e.target.checked) setEnableRepair(false);
+                    }}
+                  />
+                  <span>Enable Diagnosis (detect logical issues)</span>
+                </label>
+                <small>Identifies circular reasoning, unsupported inferences, contradictions</small>
+              </div>
+
+              {enableDiagnosis && (
+                <div className="checkbox-row" style={{ marginLeft: '2rem' }}>
+                  <label className="checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={enableRepair}
+                      onChange={(e) => setEnableRepair(e.target.checked)}
+                    />
+                    <span>Generate Repairs</span>
+                  </label>
+                  <small>Propose minimal fixes for detected issues</small>
                 </div>
               )}
 
@@ -335,6 +388,12 @@ function App() {
                     label: 'Findings',
                     content: <ResultDisplay type="findings" data={result.result.findings} />,
                     disabled: !result.result.findings || result.result.findings.length === 0
+                  },
+                  {
+                    id: 'diagnosis',
+                    label: `Diagnosis${result.issues && result.issues.length > 0 ? ` (${result.issues.length})` : ''}`,
+                    content: <DiagnosisDisplay issues={result.issues || []} repairs={result.repairs || []} />,
+                    disabled: !enableDiagnosis
                   }
                 ]}
               />

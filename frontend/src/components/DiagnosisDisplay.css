@@ -1,0 +1,213 @@
+.diagnosis-display {
+  padding: 1rem;
+}
+
+.no-issues {
+  text-align: center;
+  padding: 2rem;
+  background: #f0f9ff;
+  border-radius: 8px;
+  border: 1px solid #22c55e;
+}
+
+.no-issues .check-icon {
+  font-size: 3rem;
+  display: block;
+  margin-bottom: 1rem;
+}
+
+.no-issues p {
+  color: #059669;
+  font-weight: 500;
+  margin: 0;
+}
+
+.issues-header {
+  margin-bottom: 1.5rem;
+}
+
+.issues-header h3 {
+  margin: 0;
+  color: #1f2937;
+}
+
+.issue-card {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  overflow: hidden;
+}
+
+.issue-header {
+  display: flex;
+  align-items: center;
+  padding: 1rem;
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.issue-icon {
+  font-size: 1.5rem;
+  margin-right: 1rem;
+}
+
+.issue-title {
+  flex: 1;
+}
+
+.issue-title h4 {
+  margin: 0;
+  color: #1f2937;
+  font-size: 1rem;
+}
+
+.issue-id {
+  color: #6b7280;
+  font-size: 0.875rem;
+  font-family: monospace;
+}
+
+.issue-body {
+  padding: 1rem;
+}
+
+.affected-nodes {
+  margin-bottom: 0.75rem;
+  color: #4b5563;
+}
+
+.affected-nodes strong {
+  color: #1f2937;
+}
+
+.issue-description {
+  margin: 0.75rem 0;
+  color: #4b5563;
+  font-size: 0.95rem;
+}
+
+.issue-description p {
+  margin: 0;
+}
+
+.evidence-details {
+  margin-top: 1rem;
+}
+
+.evidence-details summary {
+  cursor: pointer;
+  color: #3b82f6;
+  font-weight: 500;
+  padding: 0.5rem;
+  background: #f0f9ff;
+  border-radius: 4px;
+  margin-bottom: 0.5rem;
+}
+
+.evidence-content {
+  padding: 0.75rem;
+  background: #f9fafb;
+  border-radius: 4px;
+  margin-top: 0.5rem;
+}
+
+.evidence-content ul {
+  margin: 0.5rem 0;
+  padding-left: 1.5rem;
+}
+
+.repairs-section {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.repairs-section h5 {
+  margin: 0 0 1rem 0;
+  color: #059669;
+}
+
+.repair-card {
+  background: #f0fdf4;
+  border: 1px solid #86efac;
+  border-radius: 6px;
+  padding: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.repair-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.repair-type {
+  background: #059669;
+  color: white;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.repair-cost {
+  color: #6b7280;
+  font-size: 0.875rem;
+}
+
+.repair-actions {
+  margin: 0.75rem 0;
+}
+
+.repair-actions .action {
+  margin-bottom: 0.5rem;
+}
+
+.repair-actions strong {
+  color: #047857;
+  font-size: 0.875rem;
+}
+
+.repair-actions ul {
+  margin: 0.25rem 0;
+  padding-left: 1.5rem;
+  font-size: 0.875rem;
+  color: #4b5563;
+}
+
+.verification {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #d1fae5;
+}
+
+.verification strong {
+  color: #065f46;
+  margin-right: 0.5rem;
+}
+
+.verified {
+  color: #059669;
+  font-weight: 500;
+}
+
+.not-verified {
+  color: #dc2626;
+  font-weight: 500;
+}
+
+.fol-status {
+  margin-left: 0.5rem;
+  color: #6b7280;
+}
+
+.no-repairs {
+  margin-top: 1rem;
+  padding: 0.75rem;
+  background: #fef2f2;
+  border-left: 3px solid #ef4444;
+  border-radius: 4px;
+  color: #991b1b;
+  font-size: 0.875rem;
+}
