@@ -160,17 +160,29 @@ export const DiagnosisDisplay: React.FC<DiagnosisDisplayProps> = ({ issues, repa
 
                           {(() => {
                             const af = repair.verification.artifacts?.af_impact;
-                            const sem = repair.verification.af_semantics || "grounded";
 
+                            // For FOL repairs that add support edges, show a simple, clear message
+                            if (af && af.explanation && af.explanation.includes("Support edges")) {
+                              return (
+                                <>
+                                  {' '}
+                                  <span className="af-status" title="Adding support edges fixes logical validity but doesn't change argumentation acceptance">
+                                    ℹ️ AF: No change expected (adds support only)
+                                  </span>
+                                </>
+                              );
+                            }
+
+                            // For other repairs, show impact
                             if (!af) {
                               if (repair.verification.af_goal_accepted !== undefined) {
                                 return (
                                   <>
                                     {' '}
                                     {repair.verification.af_goal_accepted ? (
-                                      <span className="verified">✅ AF: Improves goal acceptance</span>
+                                      <span className="verified">✅ AF: Improves acceptance</span>
                                     ) : (
-                                      <span className="af-status">ℹ️ AF: No impact on goal</span>
+                                      <span className="af-status">ℹ️ AF: No impact</span>
                                     )}
                                   </>
                                 );
@@ -178,33 +190,27 @@ export const DiagnosisDisplay: React.FC<DiagnosisDisplayProps> = ({ issues, repa
                               return null;
                             }
 
+                            // Show changes only when something actually changes
+                            const targetChanged = af.target?.changed;
+                            const goalChanged = af.goal?.changed && af.goal?.id !== af.target?.id;
+
+                            if (targetChanged || goalChanged) {
+                              return (
+                                <>
+                                  {' '}
+                                  <span className="verified">
+                                    ✅ AF: {targetChanged ? `${af.target.id} ${af.target.after ? 'accepted' : 'rejected'}` : ''}
+                                    {targetChanged && goalChanged ? ', ' : ''}
+                                    {goalChanged ? `goal ${af.goal.id} ${af.goal.after ? 'accepted' : 'rejected'}` : ''}
+                                  </span>
+                                </>
+                              );
+                            }
+
                             return (
                               <>
                                 {' '}
-                                {af.target && (
-                                  <span className={af.target.changed ? "verified" : "af-status"}>
-                                    {af.target.changed
-                                      ? `✅ AF (${sem}): Node ${af.target.id} ${af.target.after ? 'becomes accepted' : 'status changed'}`
-                                      : `ℹ️ AF (${sem}): Node ${af.target.id} remains ${af.target.after ? 'accepted' : 'not accepted'}`
-                                    }
-                                  </span>
-                                )}
-
-                                {af.goal && af.goal.id && af.goal.id !== af.target?.id && (
-                                  <>
-                                    {' | '}
-                                    <span className={af.goal.changed ? "verified" : "af-status"}>
-                                      {af.goal.changed
-                                        ? `✅ Goal ${af.goal.id} ${af.goal.after ? 'becomes accepted' : 'becomes rejected'}`
-                                        : `ℹ️ Goal ${af.goal.id} unchanged`
-                                      }
-                                    </span>
-                                  </>
-                                )}
-
-                                {af.explanation && (
-                                  <span className="af-explanation" title={af.explanation}> ⓘ</span>
-                                )}
+                                <span className="af-status">ℹ️ AF: No change in acceptance</span>
                               </>
                             );
                           })()}
