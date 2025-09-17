@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import './DetailPane.css';
 
 interface Node {
   id: string;
@@ -46,79 +47,46 @@ const DetailPane: React.FC<{ selectedItem: SelectedItem; onClose: () => void }> 
   if (!selectedItem) return null;
 
   const renderNodeDetails = (node: Node) => (
-    <div>
-      <h3 style={{ margin: '0 0 1rem 0', color: '#1f2937', fontSize: '18px' }}>Node: {node.id}</h3>
+    <div className="node-details">
+      <h3>Node: {node.id}</h3>
       
       {node.conclusion?.text && (
-        <div style={{ marginBottom: '1rem' }}>
-          <h4 style={{ margin: '0 0 0.5rem 0', color: '#374151', fontSize: '14px', fontWeight: '600' }}>Conclusion:</h4>
-          <div style={{ 
-            margin: 0, 
-            color: '#4b5563', 
-            fontSize: '14px', 
-            lineHeight: '1.5', 
-            padding: '0.5rem', 
-            background: '#f9fafb', 
-            borderRadius: '4px', 
-            border: '1px solid #e5e7eb',
-            whiteSpace: 'pre-wrap',
-            wordWrap: 'break-word',
-            maxHeight: '200px',
-            overflow: 'auto'
-          }}>
+        <div className="detail-section">
+          <h4>Conclusion:</h4>
+          <div className="detail-content conclusion">
             {node.conclusion.text}
           </div>
         </div>
       )}
       
       {node.rule && (
-        <div style={{ marginBottom: '1rem' }}>
-          <h4 style={{ margin: '0 0 0.5rem 0', color: '#374151', fontSize: '14px', fontWeight: '600' }}>Rule:</h4>
-          <div style={{ 
-            margin: 0, 
-            color: '#4b5563', 
-            fontSize: '14px', 
-            lineHeight: '1.5', 
-            padding: '0.5rem', 
-            background: '#f0f9ff', 
-            borderRadius: '4px', 
-            border: '1px solid #bae6fd',
-            whiteSpace: 'pre-wrap',
-            wordWrap: 'break-word',
-            maxHeight: '200px',
-            overflow: 'auto'
-          }}>
+        <div className="detail-section">
+          <h4>Rule:</h4>
+          <div className="detail-content rule">
             {typeof node.rule === 'string' ? node.rule : (
               <div>
                 {node.rule.name && (
-                  <div style={{ fontWeight: '600', marginBottom: '0.5rem' }}>
+                  <div className="rule-name">
                     {node.rule.name}
                     {node.rule.strict !== undefined && (
-                      <span style={{ 
-                        marginLeft: '0.5rem', 
-                        padding: '0.125rem 0.25rem', 
-                        fontSize: '10px', 
-                        borderRadius: '2px',
-                        background: node.rule.strict ? '#dcfce7' : '#fef3c7',
-                        color: node.rule.strict ? '#166534' : '#92400e'
-                      }}>
+                      <span className={`rule-badge ${node.rule.strict ? 'strict' : 'defeasible'}`}>
                         {node.rule.strict ? 'STRICT' : 'DEFEASIBLE'}
                       </span>
                     )}
                   </div>
                 )}
                 {node.rule.antecedents && node.rule.antecedents.length > 0 && (
-                  <div style={{ marginBottom: '0.5rem' }}>
+                  <div className="rule-section">
                     <strong>If:</strong> {node.rule.antecedents.map((ant: any) => ant.text || JSON.stringify(ant)).join(', ')}
                   </div>
                 )}
                 {node.rule.consequents && node.rule.consequents.length > 0 && (
-                  <div style={{ marginBottom: '0.5rem' }}>
+                  <div className="rule-section">
                     <strong>Then:</strong> {node.rule.consequents.map((cons: any) => cons.text || JSON.stringify(cons)).join(', ')}
                   </div>
                 )}
                 {node.rule.exceptions && node.rule.exceptions.length > 0 && (
-                  <div style={{ marginBottom: '0.5rem' }}>
+                  <div className="rule-section">
                     <strong>Except:</strong> {node.rule.exceptions.map((exc: any) => exc.text || JSON.stringify(exc)).join(', ')}
                   </div>
                 )}
@@ -129,18 +97,11 @@ const DetailPane: React.FC<{ selectedItem: SelectedItem; onClose: () => void }> 
       )}
       
       {node.premises && node.premises.length > 0 && (
-        <div style={{ marginBottom: '1rem' }}>
-          <h4 style={{ margin: '0 0 0.5rem 0', color: '#374151', fontSize: '14px', fontWeight: '600' }}>Premises:</h4>
-          <div style={{ padding: '0.5rem', background: '#fefce8', borderRadius: '4px', border: '1px solid #fde047' }}>
+        <div className="detail-section">
+          <h4>Premises:</h4>
+          <div className="detail-content premises">
             {node.premises.map((premise, idx) => (
-              <div key={idx} style={{ 
-                marginBottom: idx < node.premises!.length - 1 ? '0.5rem' : 0,
-                color: '#4b5563', 
-                fontSize: '14px', 
-                lineHeight: '1.5',
-                whiteSpace: 'pre-wrap',
-                wordWrap: 'break-word'
-              }}>
+              <div key={idx} className="premise-item">
                 {typeof premise === 'string' ? premise : JSON.stringify(premise, null, 2)}
               </div>
             ))}
@@ -151,44 +112,20 @@ const DetailPane: React.FC<{ selectedItem: SelectedItem; onClose: () => void }> 
   );
 
   const renderEdgeDetails = (edge: Edge) => (
-    <div>
-      <h3 style={{ margin: '0 0 1rem 0', color: '#1f2937', fontSize: '18px' }}>
-        Edge: {edge.source} → {edge.target}
-      </h3>
+    <div className="edge-details">
+      <h3>Edge: {edge.source} → {edge.target}</h3>
       
-      <div style={{ marginBottom: '1rem' }}>
-        <h4 style={{ margin: '0 0 0.5rem 0', color: '#374151', fontSize: '14px', fontWeight: '600' }}>Type:</h4>
-        <span style={{ 
-          display: 'inline-block',
-          padding: '0.25rem 0.5rem', 
-          borderRadius: '4px', 
-          fontSize: '12px', 
-          fontWeight: '500',
-          color: edge.kind === 'attack' ? '#dc2626' : '#059669',
-          background: edge.kind === 'attack' ? '#fee2e2' : '#d1fae5',
-          border: edge.kind === 'attack' ? '1px solid #fca5a5' : '1px solid #86efac'
-        }}>
+      <div className="detail-section">
+        <h4>Type:</h4>
+        <span className={`edge-type-badge ${edge.kind}`}>
           {edge.kind.toUpperCase()}
         </span>
       </div>
       
       {edge.rationale && (
-        <div style={{ marginBottom: '1rem' }}>
-          <h4 style={{ margin: '0 0 0.5rem 0', color: '#374151', fontSize: '14px', fontWeight: '600' }}>Rationale:</h4>
-          <div style={{ 
-            margin: 0, 
-            color: '#4b5563', 
-            fontSize: '14px', 
-            lineHeight: '1.5', 
-            padding: '0.5rem', 
-            background: '#f9fafb', 
-            borderRadius: '4px', 
-            border: '1px solid #e5e7eb',
-            whiteSpace: 'pre-wrap',
-            wordWrap: 'break-word',
-            maxHeight: '200px',
-            overflow: 'auto'
-          }}>
+        <div className="detail-section">
+          <h4>Rationale:</h4>
+          <div className="detail-content rationale">
             {edge.rationale}
           </div>
         </div>
@@ -197,43 +134,10 @@ const DetailPane: React.FC<{ selectedItem: SelectedItem; onClose: () => void }> 
   );
 
   return (
-    <div style={{
-      width: isMobile ? '100%' : '350px',
-      height: '100%',
-      background: 'white',
-      borderLeft: !isMobile ? '1px solid #e5e7eb' : 'none',
-      borderTop: isMobile ? '1px solid #e5e7eb' : 'none',
-      padding: '1rem',
-      overflow: 'auto',
-      boxShadow: !isMobile ? '-2px 0 8px rgba(0, 0, 0, 0.1)' : '0 -2px 8px rgba(0, 0, 0, 0.1)',
-      position: isMobile ? 'absolute' : 'static',
-      bottom: isMobile ? 0 : 'auto',
-      left: isMobile ? 0 : 'auto',
-      right: isMobile ? 0 : 'auto',
-      zIndex: isMobile ? 10 : 'auto',
-      maxHeight: isMobile ? '50%' : '100%'
-    }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-        <h2 style={{ margin: 0, color: '#1f2937', fontSize: '16px', fontWeight: '600' }}>Details</h2>
-        <button
-          onClick={onClose}
-          style={{
-            background: 'none',
-            border: 'none',
-            fontSize: '18px',
-            color: '#6b7280',
-            cursor: 'pointer',
-            padding: '0.25rem',
-            borderRadius: '4px',
-            width: '28px',
-            height: '28px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}
-          onMouseEnter={(e) => e.currentTarget.style.background = '#f3f4f6'}
-          onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
-        >
+    <div className={`detail-pane ${isMobile ? 'mobile' : ''}`}>
+      <div className="detail-pane-header">
+        <h2 className="detail-pane-title">Details</h2>
+        <button className="detail-pane-close" onClick={onClose}>
           ×
         </button>
       </div>
