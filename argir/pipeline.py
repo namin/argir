@@ -86,7 +86,7 @@ def run_pipeline(text: str, fol_mode: str = "classical", goal_id: Optional[str] 
         "validation_issues": validation_issues  # Include in result for UI to display
     }
 
-def run_pipeline_soft(text: str, fol_mode: str = "classical", goal_id: Optional[str] = None, k_samples: int = 1) -> Dict[str, Any]:
+def run_pipeline_soft(text: str, fol_mode: str = "classical", goal_id: Optional[str] = None, goal_hint: Optional[str] = None, k_samples: int = 1) -> Dict[str, Any]:
     """Run pipeline with soft IR extraction and compilation to strict ARGIR."""
     from .soft_ir import SoftIR, SoftGraph, SoftNode, SoftEdge, SoftStatement, SoftTerm, SoftRule, SoftPremiseRef
     from .compile_soft import compile_soft_ir
@@ -97,7 +97,7 @@ def run_pipeline_soft(text: str, fol_mode: str = "classical", goal_id: Optional[
     parse_mod = importlib.import_module("argir.nlp.parse")
     llm = parse_mod.get_llm()
 
-    system_prompt, user_prompt = get_soft_extraction_prompt(text)
+    system_prompt, user_prompt = get_soft_extraction_prompt(text, goal_hint)
 
     best_argir = None
     best_report = None
@@ -179,6 +179,7 @@ def run_pipeline_soft(text: str, fol_mode: str = "classical", goal_id: Optional[
                     premises=premises,
                     rule=rule,
                     conclusion=conclusion,
+                    span=n_data.get("span"),
                     rationale=n_data.get("rationale")
                 ))
 
@@ -289,6 +290,7 @@ def run_pipeline_soft(text: str, fol_mode: str = "classical", goal_id: Optional[
                     premises=premises,
                     rule=rule,
                     conclusion=conclusion,
+                    span=n_data.get("span"),
                     rationale=n_data.get("rationale")
                 ))
 
@@ -313,8 +315,8 @@ def run_pipeline_soft(text: str, fol_mode: str = "classical", goal_id: Optional[
                 goal=soft_data.get("goal")
             )
 
-            # Compile to strict ARGIR
-            argir_dict, atom_table, validation_report = compile_soft_ir(soft_ir)
+            # Compile to strict ARGIR (pass goal_id to override auto-detection)
+            argir_dict, atom_table, validation_report = compile_soft_ir(soft_ir, goal_id=goal_id)
 
             # Count errors
             error_count = len(validation_report.errors())

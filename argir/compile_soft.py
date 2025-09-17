@@ -38,6 +38,28 @@ def _mk_term(token: str) -> dict:
         return {"kind": "Var", "name": token}
     return {"kind": "Const", "name": token}
 
+
+def _split_conjunctions(antecedents: List[dict], max_conjuncts: int = 3) -> List[dict]:
+    """
+    Split conjunctions in antecedents when possible.
+    E.g., "P1 and P2" becomes two separate antecedents.
+    """
+    result = []
+    for ant in antecedents:
+        # Check if text contains "and" coordination
+        text = ant.get("text", "")
+        if " and " in text.lower() and len(ant.get("atoms", [])) > 1:
+            # Split atoms across separate antecedents (up to max_conjuncts)
+            atoms = ant.get("atoms", [])[:max_conjuncts]
+            for atom in atoms:
+                new_ant = dict(ant)
+                new_ant["atoms"] = [atom]
+                new_ant["text"] = f"Split conjunct: {atom.get('pred', '')}"
+                result.append(new_ant)
+        else:
+            result.append(ant)
+    return result
+
 def _canon_stmt(stmt: SoftStatement, at: AtomTable) -> Tuple[str, int, dict]:
     pred, extracted_entities = at.propose(stmt.pred, observed_arity=len(stmt.args))
     # Convert to ARGIR statement format with atoms
@@ -80,8 +102,14 @@ def _canon_stmt(stmt: SoftStatement, at: AtomTable) -> Tuple[str, int, dict]:
     }
     return pred, len(args), obj
 
-def compile_soft_ir(soft: SoftIR, *, existing_atoms: AtomTable | None = None) -> Tuple[Dict, AtomTable, "ValidationReport"]:
-    """Return a canonical ARGIR object (JSON-safe dict) that satisfies the hard contract."""
+def compile_soft_ir(soft: SoftIR, *, existing_atoms: AtomTable | None = None, goal_id: str | None = None) -> Tuple[Dict, AtomTable, "ValidationReport"]:
+    """Return a canonical ARGIR object (JSON-safe dict) that satisfies the hard contract.
+
+    Args:
+        soft: The soft IR to compile
+        existing_atoms: Optional atom table to use/extend
+        goal_id: Explicit goal ID to use (overrides auto-detection)
+    """
     from .validate import validate_argir, patch_missing_lexicon
 
     at = existing_atoms or AtomTable()
@@ -123,8 +151,41 @@ def compile_soft_ir(soft: SoftIR, *, existing_atoms: AtomTable | None = None) ->
                 _, _, pobj = _canon_stmt(p, at)
                 hard["premises"].append(pobj)
         if n.span:
-            hard["span"] = n.span
-        if n.rationale:
+            # Find the span text in the source text to get real indices
+            span_text = n.span
+            start_idx = soft.source_text.find(span_text)
+
+            # If not found, try case-insensitive search
+            if start_idx == -1:
+                lower_source = soft.source_text.lower()
+                lower_span = span_text.lower()
+                start_idx = lower_source.find(lower_span)
+                if start_idx != -1:
+                    # Extract the actual text from source with original casing
+                    span_text = soft.source_text[start_idx:start_idx + len(span_text)]
+
+            # If still not found, try removing common prefixes like "But "
+            if start_idx == -1:
+                for prefix in ["But ", "However, ", "Therefore, ", "So, ", "Thus, "]:
+                    if soft.source_text.find(prefix + span_text) != -1:
+                        start_idx = soft.source_text.find(prefix + span_text)
+                        span_text = prefix + span_text
+                        break
+
+            if start_idx != -1:
+                # Found the text in the source
+                hard["span"] = {
+                    "start": start_idx,
+                    "end": start_idx + len(span_text),
+                    "text": span_text
+                }
+            else:
+                # Fallback: if we can't find exact match, store in rationale
+                if n.rationale:
+                    hard["rationale"] = f"[Source: \"{n.span}\"] {n.rationale}"
+                else:
+                    hard["rationale"] = f"Source: \"{n.span}\""
+        if n.rationale and "rationale" not in hard:
             hard["rationale"] = n.rationale
         hard_nodes.append(hard)
 
@@ -140,6 +201,9 @@ def compile_soft_ir(soft: SoftIR, *, existing_atoms: AtomTable | None = None) ->
             # Extract antecedents from premises (only Statements, not Refs)
             antecedents = [p for p in node["premises"] if isinstance(p, dict) and p.get("kind") == "Stmt"]
 
+            # Split conjunctions if possible (max 3 conjuncts)
+            split_antecedents = _split_conjunctions(antecedents, max_conjuncts=3)
+
             # Create implicit rule node
             implicit_rule = {
                 "id": rule_id,
@@ -147,7 +211,7 @@ def compile_soft_ir(soft: SoftIR, *, existing_atoms: AtomTable | None = None) ->
                 "rule": {
                     "name": "implicit_inference",
                     "strict": False,  # Default to defeasible
-                    "antecedents": antecedents,
+                    "antecedents": split_antecedents,
                     "consequents": [node["conclusion"]],
                     "exceptions": [],
                     "scheme": "Implicit inference"
@@ -170,30 +234,49 @@ def compile_soft_ir(soft: SoftIR, *, existing_atoms: AtomTable | None = None) ->
                    **({"rationale": e.rationale} if e.rationale else {})}
                   for e in soft.graph.edges]
 
-    # Handle goal from soft IR
-    goal_id = None
-    if hasattr(soft, 'goal') and soft.goal:
-        if isinstance(soft.goal, dict):
-            old_goal_id = soft.goal.get('node_id')
-            # Map the goal ID through the ID mapping
-            goal_id = idmap.get(old_goal_id, old_goal_id)
+    # Handle goal - explicit parameter takes precedence
+    final_goal_id = None
+    if goal_id:
+        # Use explicitly provided goal_id (map it through idmap if needed)
+        final_goal_id = idmap.get(goal_id, goal_id)
+    else:
+        # Auto-detect from soft IR
+        if hasattr(soft, 'goal') and soft.goal:
+            if isinstance(soft.goal, dict):
+                old_goal_id = soft.goal.get('node_id')
+                # Map the goal ID through the ID mapping
+                final_goal_id = idmap.get(old_goal_id, old_goal_id)
 
-    # Check metadata as fallback (including legacy goal_candidate_id)
-    if not goal_id and hasattr(soft, 'metadata') and isinstance(soft.metadata, dict):
-        old_goal_id = soft.metadata.get('goal_id') or soft.metadata.get('goal_candidate_id')
-        if old_goal_id:
-            goal_id = idmap.get(old_goal_id, old_goal_id)
+        # Check metadata as fallback (including legacy goal_candidate_id)
+        if not final_goal_id and hasattr(soft, 'metadata') and isinstance(soft.metadata, dict):
+            old_goal_id = soft.metadata.get('goal_id') or soft.metadata.get('goal_candidate_id')
+            if old_goal_id:
+                final_goal_id = idmap.get(old_goal_id, old_goal_id)
 
     # Compose strict ARGIR object
+    # Get lexicon in the format expected by validator (simple pred -> examples dict)
+    full_lexicon = at.to_lexicon()
+    simple_lexicon = {}
+    if isinstance(full_lexicon, dict):
+        # Extract just the surface forms for validator
+        if "surface_forms" in full_lexicon:
+            simple_lexicon = full_lexicon["surface_forms"]
+        else:
+            # Fallback: use predicates dict
+            for pred in full_lexicon.get("predicates", {}):
+                simple_lexicon[pred] = [pred]
+
     metadata = {
-        # Provide lexicon deterministically to satisfy the contract
-        "atom_lexicon": at.to_lexicon(),
+        # Provide lexicon in format expected by validator
+        "atom_lexicon": simple_lexicon,
+        # Also keep full lexicon for abduction
+        "full_atom_lexicon": full_lexicon,
         "implicit_rules_synthesized": len(implicit_rules) > 0
     }
 
     # Add goal_id to metadata if present
-    if goal_id:
-        metadata["goal_id"] = goal_id
+    if final_goal_id:
+        metadata["goal_id"] = final_goal_id
 
     argir_obj = {
         "version": soft.version or "0.3.2",

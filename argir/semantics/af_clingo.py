@@ -29,8 +29,14 @@ def read_apx(path: str) -> Tuple[List[str], Set[Tuple[str,str]]]:
 
 def facts_from_af(arguments: Iterable[str], attacks: Iterable[Tuple[str,str]]) -> str:
     parts = []
-    for a in arguments: parts.append(f"arg({a}).")
-    for u, v in attacks: parts.append(f"att({u},{v}).")
+    for a in arguments:
+        # Quote IDs that might need it
+        a_quoted = f'"{a}"' if not a[0].islower() or any(c in a for c in '-/\\ ') else a
+        parts.append(f"arg({a_quoted}).")
+    for u, v in attacks:
+        u_quoted = f'"{u}"' if not u[0].islower() or any(c in u for c in '-/\\ ') else u
+        v_quoted = f'"{v}"' if not v[0].islower() or any(c in v for c in '-/\\ ') else v
+        parts.append(f"att({u_quoted},{v_quoted}).")
     return "\n".join(parts) + "\n"
 
 # ---------- Encodings (clingo) ----------

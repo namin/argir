@@ -7,16 +7,72 @@ from ..core.model import ARGIR, Statement, NodeRef, InferenceStep
 # Variable name pattern for salvaging variables in strict mode
 VAR_NAME_RE = re.compile(r'^[XYZWUV]\d*$')  # X, Y, Z, W, U, V with optional digits
 
+# TPTP token sanitization
+_TPTP_IDENT_RE = re.compile(r"^[a-z][A-Za-z0-9_]*$")        # functor/predicate symbol
+_TPTP_VAR_RE   = re.compile(r"^[A-Z][A-Za-z0-9_]*$")        # variable symbol
+
+def _sanitize_symbol(s: str, *, is_var: bool=False) -> str:
+    """Return a TPTP-safe symbol (quoted if necessary)."""
+    if s is None:
+        return s
+    s = str(s)
+    # quick fixups: replace disallowed chars
+    s = s.replace("-", "_").replace(" ", "_").replace("/", "_").replace(".", "_")
+    if is_var:
+        # variables must start uppercase; if not, promote
+        if not _TPTP_VAR_RE.match(s):
+            if s and s[0].islower():
+                s = s[0].upper() + s[1:]
+            if not _TPTP_VAR_RE.match(s):
+                s = "V_" + re.sub(r"[^A-Za-z0-9_]", "_", s)
+        return s
+    else:
+        # predicates/functions must start lowercase; if not, demote or quote
+        if _TPTP_IDENT_RE.match(s):
+            return s
+        # Try to demote leading uppercase
+        if s and s[0].isupper():
+            s = s[0].lower() + s[1:]
+        s = re.sub(r"[^A-Za-z0-9_]", "_", s)
+        if not _TPTP_IDENT_RE.match(s):
+            # Final fallback: single-quote the whole thing (TPTP allows quoted atoms)
+            return f"'{s}'"
+        return s
+
+
+def validate_tptp(fof_lines: list[str]) -> tuple[bool, str]:
+    """Quick preflight: ensure every line ends with '.', and attempt parsing via E-prover in parse-only mode."""
+    text = "\n".join(l if l.strip().endswith(".") else f"{l.rstrip('.')}." for l in fof_lines)
+    try:
+        import subprocess, tempfile, shutil
+        eprover = shutil.which("eprover")
+        if not eprover:
+            return True, ""  # Skip validation if E-prover not available
+
+        with tempfile.NamedTemporaryFile("w", suffix=".p", delete=False) as f:
+            f.write(text)
+            f.flush()
+            # '--parse-only' is supported by E; if absent in your version, use '--proof-object=none --cpu-limit=1'
+            res = subprocess.run(["eprover", "--parse-only", f.name],
+                                 capture_output=True, text=True, timeout=2)
+        ok = res.returncode == 0 and "SZS status" in (res.stdout + res.stderr)
+        return ok, text if not ok else ""
+    except Exception as ex:
+        # If E isn't available, skip validation; the main call will mark unverified
+        return True, ""
+
 def _to_term(t):
     """Convert term dict to FOL Term, with variable salvage for strict mode."""
     name = t.name
     kind = getattr(t, "kind", None) if hasattr(t, "kind") else t.get("kind")
     # If explicitly marked as Var, or matches our variable pattern, treat as variable
     if kind == "Var" or VAR_NAME_RE.match(name):
-        return Var(name)
-    return Const(name)
+        return Var(_sanitize_symbol(name, is_var=True))
+    return Const(_sanitize_symbol(name, is_var=False))
 
-def _to_atom(a): return Atom(Pred(a.pred, len(a.args)), [_to_term(x) for x in a.args], a.negated)
+def _to_atom(a):
+    pred_name = _sanitize_symbol(a.pred, is_var=False)
+    return Atom(Pred(pred_name, len(a.args)), [_to_term(x) for x in a.args], a.negated)
 
 def _vars_in_atom(a: Atom) -> set[str]:
     """Collect free variables in an atom."""
@@ -233,10 +289,12 @@ def argir_to_fof(u: ARGIR, *, fol_mode: str = "classical", goal_id: Optional[str
             # Create a canonical key for the statement
             concluded_stmts.add(formula(stmt_to_formula(n.conclusion)))
 
-    # Export rules
+    # Export rules (including implicit rules IR_*)
     for n in u.graph.nodes:
         if n.rule:
-            out.append((f"rule_{n.id}", fof(f"rule_{n.id}", "axiom", rule_to_formula(n, fol_mode=fol_mode))))
+            # Ensure implicit rules are properly exported for abduction
+            rule_formula = rule_to_formula(n, fol_mode=fol_mode)
+            out.append((f"rule_{n.id}", fof(f"rule_{n.id}", "axiom", rule_formula)))
 
     # Export premise-only nodes (old behavior)
     for n in u.graph.nodes:

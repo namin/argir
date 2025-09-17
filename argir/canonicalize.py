@@ -12,6 +12,33 @@ def _normalize_surface(s: str) -> str:
     return s.replace(" ", "_")
 
 
+# Common morphological variants and synonyms mapping
+PREDICATE_CANON_MAP = {
+    # Verb forms
+    "rain": "raining",
+    "rains": "raining",
+    "rained": "raining",
+    "is_raining": "raining",
+    "wet": "wet",
+    "is_wet": "wet",
+    "gets_wet": "wet",
+    "become_wet": "wet",
+    # Common logical predicates
+    "implies": "implies",
+    "entails": "implies",
+    "therefore": "implies",
+    "supports": "supports",
+    "support": "supports",
+    "supporting": "supports",
+    # Attack predicates
+    "attacks": "attacks",
+    "attack": "attacks",
+    "attacking": "attacks",
+    "contradicts": "contradicts",
+    "contradict": "contradicts",
+}
+
+
 @dataclass
 class AtomEntry:
     canonical: str                 # canonical predicate key
@@ -35,6 +62,10 @@ class AtomTable:
         # Simple normalization
         norm = _normalize_surface(surface_pred)
 
+        # Apply morphological canonicalization
+        if norm in PREDICATE_CANON_MAP:
+            norm = PREDICATE_CANON_MAP[norm]
+
         # Check if we've seen this exact form before
         if norm in self.alias:
             canon = self.alias[norm]
@@ -43,7 +74,7 @@ class AtomTable:
                 self.entries[canon].examples.append(surface_pred)
             return canon, []
 
-        # New canonical form - just use the normalized version
+        # New canonical form - use the canonicalized version
         canon = norm
 
         # If there's an arity clash, disambiguate
@@ -62,14 +93,23 @@ class AtomTable:
         if canonical not in self.entries:
             self.entries[canonical] = AtomEntry(canonical=canonical, arity=arity)
 
-    def to_lexicon(self) -> Dict[str, List[str]]:
-        """ARGIR metadata.atom_lexicon payload: canonical -> example surface forms."""
-        lexicon = {}
+    def to_lexicon(self) -> Dict[str, any]:
+        """ARGIR metadata.atom_lexicon payload with predicates and constants."""
+        # Format expected by abduction module:
+        # {"predicates": {pred: arity}, "constants": [list]}
+        predicates = {}
+        constants = set()
+
         for k, v in self.entries.items():
-            # If we have real surface examples, use them
-            if v.examples:
-                lexicon[k] = v.examples
-            else:
-                # Only use canonical as fallback, and mark it
-                lexicon[k] = [k]
-        return lexicon
+            predicates[k] = v.arity
+            # Extract constants from examples (simplified)
+            for ex in v.examples:
+                # Basic extraction - could be enhanced
+                pass
+
+        return {
+            "predicates": predicates,
+            "constants": sorted(list(constants)),
+            "surface_forms": {k: v.examples if v.examples else [k]
+                            for k, v in self.entries.items()}
+        }

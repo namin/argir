@@ -3,6 +3,7 @@ import './App.css';
 import { TabContainer } from './components/TabContainer';
 import { ResultDisplay } from './components/ResultDisplay';
 import { ArgumentGraph } from './components/ArgumentGraph';
+import { DiagnosisDisplay } from './components/DiagnosisDisplay';
 
 type ArgirResult = {
   success: boolean;
@@ -19,6 +20,22 @@ type ArgirResult = {
     fol_summary?: any;
     validation_issues?: any[];
   };
+  issues?: Array<{
+    id: string;
+    type: string;
+    target_node_ids: string[];
+    evidence: any;
+    detector_name: string;
+    notes?: string;
+  }>;
+  repairs?: Array<{
+    id: string;
+    issue_id: string;
+    kind: string;
+    patch: any;
+    cost: number;
+    verification: any;
+  }>;
   validation?: {
     errors?: Array<{
       code: string;
@@ -40,9 +57,12 @@ function App() {
   const [text, setText] = useState('');
   const [folMode, setFolMode] = useState<'classical' | 'defeasible'>('classical');
   const [goalId, setGoalId] = useState('');
+  const [goalHint, setGoalHint] = useState('');
   const [useSoft, setUseSoft] = useState(true);
   const [kSamples, setKSamples] = useState(1);
   const [apiKey, setApiKey] = useState('');
+  const [enableDiagnosis, setEnableDiagnosis] = useState(true);
+  const [enableRepair, setEnableRepair] = useState(true);
 
   const [result, setResult] = useState<ArgirResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -87,9 +107,15 @@ function App() {
           text,
           fol_mode: folMode,
           goal_id: goalId || null,
+          goal_hint: goalHint || null,
           use_soft: useSoft,
           k_samples: kSamples,
           api_key: apiKey.trim() || null,
+          enable_diagnosis: enableDiagnosis,
+          enable_repair: enableRepair,
+          semantics: 'grounded',
+          max_af_edits: 2,
+          max_abduce: 2,
         }),
       });
 
@@ -176,6 +202,37 @@ function App() {
 
               <div className="options-row">
                 <div className="form-group">
+                  <label htmlFor="goal-hint">Goal Hint (optional):</label>
+                  <input
+                    id="goal-hint"
+                    type="text"
+                    value={goalHint}
+                    onChange={(e) => setGoalHint(e.target.value)}
+                    placeholder=""
+                    style={{ width: '100%' }}
+                  />
+                  <small>e.g., a sentence from the text</small>
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="goal-id">Goal Node ID (optional):</label>
+                  <input
+                    id="goal-id"
+                    type="text"
+                    value={goalId}
+                    onChange={(e) => setGoalId(e.target.value)}
+                    placeholder="auto-detect"
+                    list="node-ids"
+                  />
+                  <datalist id="node-ids">
+                    {nodeIds.map(id => (
+                      <option key={id} value={id} />
+                    ))}
+                  </datalist>
+                  <small>Can specify a node ID (e.g. C1) on a re-analyze. Leave empty to auto-detect.</small>
+                </div>
+
+                <div className="form-group">
                   <label htmlFor="fol-mode">FOL Mode:</label>
                   <select
                     id="fol-mode"
@@ -185,21 +242,6 @@ function App() {
                     <option value="classical">Classical</option>
                     <option value="defeasible">Defeasible (exceptions become negated conditions)</option>
                   </select>
-                </div>
-
-                <div className="form-group">
-                  <label htmlFor="goal-id">Goal Node ID:</label>
-                  <select
-                    id="goal-id"
-                    value={goalId}
-                    onChange={(e) => setGoalId(e.target.value)}
-                  >
-                    <option value="">(auto-select)</option>
-                    {nodeIds.map(id => (
-                      <option key={id} value={id}>{id}</option>
-                    ))}
-                  </select>
-                  <small>Leave empty for auto-selection</small>
                 </div>
               </div>
 
@@ -216,7 +258,7 @@ function App() {
               </div>
 
               {useSoft && (
-                <div className="form-group soft-options">
+                <div className="form-group soft-options" style={{ marginLeft: '2rem', marginTop: '0.5rem', marginBottom: '1rem' }}>
                   <label htmlFor="k-samples">Number of samples:</label>
                   <input
                     id="k-samples"
@@ -227,6 +269,35 @@ function App() {
                     max="10"
                   />
                   <small>Try multiple extractions and pick the best (1-10)</small>
+                </div>
+              )}
+
+              <div className="checkbox-row">
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={enableDiagnosis}
+                    onChange={(e) => {
+                      setEnableDiagnosis(e.target.checked);
+                      if (!e.target.checked) setEnableRepair(false);
+                    }}
+                  />
+                  <span>Enable Diagnosis (detect logical issues)</span>
+                </label>
+                <small>Identifies circular reasoning, unsupported inferences, contradictions</small>
+              </div>
+
+              {enableDiagnosis && (
+                <div className="checkbox-row" style={{ marginLeft: '2rem' }}>
+                  <label className="checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={enableRepair}
+                      onChange={(e) => setEnableRepair(e.target.checked)}
+                    />
+                    <span>Generate Repairs</span>
+                  </label>
+                  <small>Propose minimal fixes for detected issues</small>
                 </div>
               )}
 
@@ -243,6 +314,19 @@ function App() {
               {error && (
                 <div className="error">
                   {error}
+                </div>
+              )}
+
+              {result && result.result?.argir?.metadata?.goal_id && (
+                <div className="info" style={{
+                  background: '#e3f2fd',
+                  border: '1px solid #2196f3',
+                  borderRadius: '4px',
+                  padding: '8px 12px',
+                  marginTop: '12px',
+                  fontSize: '14px'
+                }}>
+                  ℹ️ Analysis used goal node: <strong>{result.result.argir.metadata.goal_id}</strong>
                 </div>
               )}
 
@@ -335,6 +419,12 @@ function App() {
                     label: 'Findings',
                     content: <ResultDisplay type="findings" data={result.result.findings} />,
                     disabled: !result.result.findings || result.result.findings.length === 0
+                  },
+                  {
+                    id: 'diagnosis',
+                    label: `Diagnosis${result.issues && result.issues.length > 0 ? ` (${result.issues.length})` : ''}`,
+                    content: <DiagnosisDisplay issues={result.issues || []} repairs={result.repairs || []} />,
+                    disabled: !enableDiagnosis
                   }
                 ]}
               />

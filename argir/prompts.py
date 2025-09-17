@@ -11,6 +11,7 @@ Output a single JSON object with this structure:
     "nodes": [
       {
         "id": "<optional: n1, r1, etc>",
+        "span": "<IMPORTANT: the exact sentence(s) from the source text that this node represents>",
         "premises": [
           // Either a Statement or a Ref to another node
           {"pred": "...", "args": [{"value": "..."}], "polarity": "pos"/"neg"}
@@ -129,9 +130,16 @@ Remember to:
 6. NEVER invent 0-arity macro predicates; NEVER use 'atoms' or 'text' keys in statements
 7. Output valid JSON matching the SOFT schema (no strict ARGIR fields)"""
 
-def get_soft_extraction_prompt(text: str) -> tuple[str, str]:
+def get_soft_extraction_prompt(text: str, goal_hint: str = None) -> tuple[str, str]:
     """Return (system_prompt, user_prompt) for soft extraction."""
-    return SOFT_EXTRACTION_SYS, SOFT_EXTRACTION_USER_TEMPLATE.format(text=text)
+    user_prompt = SOFT_EXTRACTION_USER_TEMPLATE.format(text=text)
+
+    # Add goal hint if provided
+    if goal_hint:
+        user_prompt += f"\n\nIMPORTANT: The main claim to analyze/defend is: '{goal_hint}'"
+        user_prompt += "\nSelect the node whose conclusion best matches this claim as the goal."
+
+    return SOFT_EXTRACTION_SYS, user_prompt
 
 def repair_prompt_for_missing_lexicon(preds_missing: list[str]) -> str:
     """Generate repair prompt for missing lexicon entries."""
