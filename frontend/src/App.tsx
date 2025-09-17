@@ -61,8 +61,8 @@ function App() {
   const [useSoft, setUseSoft] = useState(true);
   const [kSamples, setKSamples] = useState(1);
   const [apiKey, setApiKey] = useState('');
-  const [enableDiagnosis, setEnableDiagnosis] = useState(false);
-  const [enableRepair, setEnableRepair] = useState(false);
+  const [enableDiagnosis, setEnableDiagnosis] = useState(true);
+  const [enableRepair, setEnableRepair] = useState(true);
 
   const [result, setResult] = useState<ArgirResult | null>(null);
   const [loading, setLoading] = useState(false);
