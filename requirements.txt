@@ -3,4 +3,8 @@ uvicorn[standard]
 pydantic
 google-genai
 joblib
+<<<<<<< Updated upstream
 networkx
+=======
+spacy
+>>>>>>> Stashed changes
