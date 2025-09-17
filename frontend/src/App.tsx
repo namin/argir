@@ -208,10 +208,10 @@ function App() {
                     type="text"
                     value={goalHint}
                     onChange={(e) => setGoalHint(e.target.value)}
-                    placeholder=""
+                    placeholder="e.g., a sentence from the text"
                     style={{ width: '100%' }}
                   />
-                  <small>e.g., a sentence from the text</small>
+                  <small>Text snippet to use as goal</small>
                 </div>
 
                 <div className="form-group">
@@ -229,7 +229,7 @@ function App() {
                       <option key={id} value={id} />
                     ))}
                   </datalist>
-                  <small>Can specify a node ID (e.g. C1) on a re-analyze. Leave empty to auto-detect.</small>
+                  <small>Node ID (e.g. C1) or leave empty</small>
                 </div>
 
                 <div className="form-group">
