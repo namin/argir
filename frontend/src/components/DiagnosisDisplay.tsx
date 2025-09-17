@@ -126,7 +126,7 @@ export const DiagnosisDisplay: React.FC<DiagnosisDisplayProps> = ({ issues, repa
                         <div className="repair-actions">
                           {repair.patch.add_nodes?.length > 0 && (
                             <div className="action">
-                              <strong>Add nodes:</strong>
+                              <strong>Add premise:</strong>
                               <ul>
                                 {repair.patch.add_nodes.map((node: any, i: number) => (
                                   <li key={i}>{node.text || node.id}</li>
@@ -136,10 +136,10 @@ export const DiagnosisDisplay: React.FC<DiagnosisDisplayProps> = ({ issues, repa
                           )}
                           {repair.patch.add_edges?.length > 0 && (
                             <div className="action">
-                              <strong>Add edges:</strong>
+                              <strong>Add support:</strong>
                               <ul>
                                 {repair.patch.add_edges.map((edge: any, i: number) => (
-                                  <li key={i}>{edge.source} → {edge.target} ({edge.kind})</li>
+                                  <li key={i}>New premise → {edge.target}</li>
                                 ))}
                               </ul>
                             </div>

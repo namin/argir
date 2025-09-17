@@ -302,6 +302,19 @@ function App() {
                 </div>
               )}
 
+              {result && result.result?.argir?.metadata?.goal_id && (
+                <div className="info" style={{
+                  background: '#e3f2fd',
+                  border: '1px solid #2196f3',
+                  borderRadius: '4px',
+                  padding: '8px 12px',
+                  marginTop: '12px',
+                  fontSize: '14px'
+                }}>
+                  ℹ️ Analysis used goal node: <strong>{result.result.argir.metadata.goal_id}</strong>
+                </div>
+              )}
+
               {result?.validation && (
                 <>
                   {result.validation.errors && result.validation.errors.length > 0 && (

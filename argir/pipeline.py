@@ -313,8 +313,8 @@ def run_pipeline_soft(text: str, fol_mode: str = "classical", goal_id: Optional[
                 goal=soft_data.get("goal")
             )
 
-            # Compile to strict ARGIR
-            argir_dict, atom_table, validation_report = compile_soft_ir(soft_ir)
+            # Compile to strict ARGIR (pass goal_id to override auto-detection)
+            argir_dict, atom_table, validation_report = compile_soft_ir(soft_ir, goal_id=goal_id)
 
             # Count errors
             error_count = len(validation_report.errors())

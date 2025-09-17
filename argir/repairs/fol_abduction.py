@@ -55,7 +55,9 @@ def abduce_missing_premises(
         # Check for minimality
         atoms = _irredundant_minimal(axioms, goal, atoms, timeout)
         patch = _make_patch(target, atoms)
-        af_sem, af_ok = _af_after_patch(argir, target_id, patch)
+        # Use the actual goal_id from metadata, not the target_id (which is the node with the issue)
+        actual_goal_id = (argir.metadata or {}).get("goal_id", target_id)
+        af_sem, af_ok = _af_after_patch(argir, actual_goal_id, patch)
 
         verification = Verification(
             af_semantics=af_sem or "grounded",
@@ -202,7 +204,11 @@ def _fof_axiom(name: str, atom: str) -> str:
 
 def _make_patch(target: InferenceStep, atoms: List[Atom]) -> Patch:
     patch = Patch()
-    pid = f"P_hyp_{uuid.uuid4().hex[:6]}"
+    # Create a more descriptive ID based on the predicate names
+    pred_names = "_".join(a.pred[:8] for a in atoms[:2])  # First 2 preds, max 8 chars each
+    if not pred_names:
+        pred_names = "hyp"
+    pid = f"P_{pred_names}_{uuid.uuid4().hex[:4]}"
     patch.add_nodes.append({
         "id": pid,
         "kind": "Premise",

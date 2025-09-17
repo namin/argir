@@ -102,8 +102,14 @@ def _canon_stmt(stmt: SoftStatement, at: AtomTable) -> Tuple[str, int, dict]:
     }
     return pred, len(args), obj
 
-def compile_soft_ir(soft: SoftIR, *, existing_atoms: AtomTable | None = None) -> Tuple[Dict, AtomTable, "ValidationReport"]:
-    """Return a canonical ARGIR object (JSON-safe dict) that satisfies the hard contract."""
+def compile_soft_ir(soft: SoftIR, *, existing_atoms: AtomTable | None = None, goal_id: str | None = None) -> Tuple[Dict, AtomTable, "ValidationReport"]:
+    """Return a canonical ARGIR object (JSON-safe dict) that satisfies the hard contract.
+
+    Args:
+        soft: The soft IR to compile
+        existing_atoms: Optional atom table to use/extend
+        goal_id: Explicit goal ID to use (overrides auto-detection)
+    """
     from .validate import validate_argir, patch_missing_lexicon
 
     at = existing_atoms or AtomTable()
@@ -195,19 +201,24 @@ def compile_soft_ir(soft: SoftIR, *, existing_atoms: AtomTable | None = None) ->
                    **({"rationale": e.rationale} if e.rationale else {})}
                   for e in soft.graph.edges]
 
-    # Handle goal from soft IR
-    goal_id = None
-    if hasattr(soft, 'goal') and soft.goal:
-        if isinstance(soft.goal, dict):
-            old_goal_id = soft.goal.get('node_id')
-            # Map the goal ID through the ID mapping
-            goal_id = idmap.get(old_goal_id, old_goal_id)
+    # Handle goal - explicit parameter takes precedence
+    final_goal_id = None
+    if goal_id:
+        # Use explicitly provided goal_id (map it through idmap if needed)
+        final_goal_id = idmap.get(goal_id, goal_id)
+    else:
+        # Auto-detect from soft IR
+        if hasattr(soft, 'goal') and soft.goal:
+            if isinstance(soft.goal, dict):
+                old_goal_id = soft.goal.get('node_id')
+                # Map the goal ID through the ID mapping
+                final_goal_id = idmap.get(old_goal_id, old_goal_id)
 
-    # Check metadata as fallback (including legacy goal_candidate_id)
-    if not goal_id and hasattr(soft, 'metadata') and isinstance(soft.metadata, dict):
-        old_goal_id = soft.metadata.get('goal_id') or soft.metadata.get('goal_candidate_id')
-        if old_goal_id:
-            goal_id = idmap.get(old_goal_id, old_goal_id)
+        # Check metadata as fallback (including legacy goal_candidate_id)
+        if not final_goal_id and hasattr(soft, 'metadata') and isinstance(soft.metadata, dict):
+            old_goal_id = soft.metadata.get('goal_id') or soft.metadata.get('goal_candidate_id')
+            if old_goal_id:
+                final_goal_id = idmap.get(old_goal_id, old_goal_id)
 
     # Compose strict ARGIR object
     # Get lexicon in the format expected by validator (simple pred -> examples dict)
@@ -231,8 +242,8 @@ def compile_soft_ir(soft: SoftIR, *, existing_atoms: AtomTable | None = None) ->
     }
 
     # Add goal_id to metadata if present
-    if goal_id:
-        metadata["goal_id"] = goal_id
+    if final_goal_id:
+        metadata["goal_id"] = final_goal_id
 
     argir_obj = {
         "version": soft.version or "0.3.2",
