@@ -166,9 +166,27 @@ export const DiagnosisDisplay: React.FC<DiagnosisDisplayProps> = ({ issues, repa
                               return (
                                 <>
                                   {' '}
-                                  <span className="af-status" title="Adding support edges fixes logical validity but doesn't change argumentation acceptance">
-                                    ℹ️ AF: No change expected (adds support only)
-                                  </span>
+                                  <div className="af-status" style={{ display: 'inline' }}>
+                                    <span>ℹ️ AF: No change expected (adds support only)</span>
+                                    {' '}
+                                    <details style={{ display: 'inline', marginLeft: '4px' }}>
+                                      <summary style={{ cursor: 'help', color: '#6b7280', display: 'inline' }}>[why?]</summary>
+                                      <div style={{
+                                        position: 'absolute',
+                                        backgroundColor: '#f9fafb',
+                                        border: '1px solid #e5e7eb',
+                                        padding: '8px',
+                                        borderRadius: '4px',
+                                        marginTop: '4px',
+                                        maxWidth: '400px',
+                                        fontSize: '0.875rem',
+                                        zIndex: 10
+                                      }}>
+                                        In Dung argumentation frameworks, only <strong>attack</strong> edges affect acceptance.
+                                        Support edges establish logical validity but don't influence which arguments are accepted or rejected.
+                                      </div>
+                                    </details>
+                                  </div>
                                 </>
                               );
                             }
