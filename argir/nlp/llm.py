@@ -47,20 +47,30 @@ def init_llm_client(api_key: Optional[str] = None,
     if required: raise LLMNotConfigured("Set GEMINI_API_KEY or GOOGLE_CLOUD_PROJECT.")
     return None
 
+def init_llm_client_if_no_cache(required: bool = True):
+    """Initialize LLM client only if caching is disabled.
+
+    When caching is enabled, returns None since the client will be
+    created inside the cached function only on cache miss.
+    """
+    return None if CACHE_LLM else init_llm_client(required=required)
+
 def generate_content(client, contents: Union[str, list], config=None, model: str = LLM_MODEL):
     if _memory is None:
         return client.models.generate_content(model=model, contents=contents, config=config)
     @(_memory.cache)  # type: ignore
     def _cached_call(contents, m, cfg_repr):
-        resp = client.models.generate_content(model=m, contents=contents, config=config)
+        # Create client inside the cached function - only runs on cache miss
+        cached_client = init_llm_client(required=True)
+        resp = cached_client.models.generate_content(model=m, contents=contents, config=cfg_repr)
         return getattr(resp, "text", None) or getattr(resp, "output_text", None) or ""
-    text = _cached_call(contents, model, repr(config))
-    class Resp: 
+    text = _cached_call(contents, model, config)
+    class Resp:
         def __init__(self, t): self.text=t
     return Resp(text)
 
 def generate_json(prompt: str, *, system: Optional[str]=None, temperature: float=0.0, model: str = LLM_MODEL) -> str:
-    client = init_llm_client(required=True)
+    client = init_llm_client_if_no_cache(required=True)
     combined = f"{system}\n\n{prompt}" if system else prompt
     cfg = types.GenerateContentConfig(temperature=temperature, response_mime_type="application/json") if types else None
     resp = generate_content(client, contents=combined, config=cfg, model=model)
