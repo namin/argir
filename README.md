@@ -18,7 +18,7 @@ You can run the package straight from source (no build needed).
 
 ```bash
 # Core dependencies (Python 3.9+)
-pip install "pydantic>=2.0" google-genai clingo joblib
+pip install "pydantic>=2.0" google-genai clingo joblib networkx
 
 # System dependencies (optional):
 # - eprover: FOL theorem prover (install via package manager, e.g., apt/brew)
