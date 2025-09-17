@@ -2,6 +2,7 @@ fastapi
 uvicorn[standard]
 pydantic
 google-genai
+clingo
 joblib
 networkx
 spacy
