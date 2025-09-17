@@ -29,6 +29,15 @@ def enforce_goal(
     # Extract goal from issue
     if issue.type == "goal_unreachable":
         goal_id = issue.target_node_ids[0] if issue.target_node_ids else None
+    elif issue.type == "contradiction_unresolved":
+        # For contradictions, use the actual goal_id from metadata if available
+        goal_id = argir.metadata.get("goal_id") or argir.metadata.get("goal_candidate_id")
+        # If still no goal, try to use one of the contradiction nodes if it's marked as goal
+        if not goal_id and issue.target_node_ids:
+            for node_id in issue.target_node_ids:
+                if argir.metadata.get("goal_id") == node_id:
+                    goal_id = node_id
+                    break
     else:
         goal_id = argir.metadata.get("goal_candidate_id")
 
