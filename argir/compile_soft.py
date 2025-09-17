@@ -234,6 +234,26 @@ def compile_soft_ir(soft: SoftIR, *, existing_atoms: AtomTable | None = None, go
                    **({"rationale": e.rationale} if e.rationale else {})}
                   for e in soft.graph.edges]
 
+    # Auto-generate edges from node references if not already present
+    # When a node references another node via {"kind": "Ref", "ref": "node_id"},
+    # create a support edge from the referenced node to the current node
+    existing_edges = {(e["source"], e["target"]) for e in hard_edges}
+
+    for node in hard_nodes:
+        target_id = node["id"]
+        for premise in node.get("premises", []):
+            if isinstance(premise, dict) and premise.get("kind") == "Ref":
+                source_id = premise["ref"]
+                # Check if this edge already exists
+                if (source_id, target_id) not in existing_edges:
+                    hard_edges.append({
+                        "source": source_id,
+                        "target": target_id,
+                        "kind": "support",
+                        "rationale": "Auto-generated from node reference"
+                    })
+                    existing_edges.add((source_id, target_id))
+
     # Handle goal - explicit parameter takes precedence
     final_goal_id = None
     if goal_id:
