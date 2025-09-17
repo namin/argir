@@ -179,6 +179,7 @@ def run_pipeline_soft(text: str, fol_mode: str = "classical", goal_id: Optional[
                     premises=premises,
                     rule=rule,
                     conclusion=conclusion,
+                    span=n_data.get("span"),
                     rationale=n_data.get("rationale")
                 ))
 
@@ -289,6 +290,7 @@ def run_pipeline_soft(text: str, fol_mode: str = "classical", goal_id: Optional[
                     premises=premises,
                     rule=rule,
                     conclusion=conclusion,
+                    span=n_data.get("span"),
                     rationale=n_data.get("rationale")
                 ))
 

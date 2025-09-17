@@ -151,8 +151,41 @@ def compile_soft_ir(soft: SoftIR, *, existing_atoms: AtomTable | None = None, go
                 _, _, pobj = _canon_stmt(p, at)
                 hard["premises"].append(pobj)
         if n.span:
-            hard["span"] = n.span
-        if n.rationale:
+            # Find the span text in the source text to get real indices
+            span_text = n.span
+            start_idx = soft.source_text.find(span_text)
+
+            # If not found, try case-insensitive search
+            if start_idx == -1:
+                lower_source = soft.source_text.lower()
+                lower_span = span_text.lower()
+                start_idx = lower_source.find(lower_span)
+                if start_idx != -1:
+                    # Extract the actual text from source with original casing
+                    span_text = soft.source_text[start_idx:start_idx + len(span_text)]
+
+            # If still not found, try removing common prefixes like "But "
+            if start_idx == -1:
+                for prefix in ["But ", "However, ", "Therefore, ", "So, ", "Thus, "]:
+                    if soft.source_text.find(prefix + span_text) != -1:
+                        start_idx = soft.source_text.find(prefix + span_text)
+                        span_text = prefix + span_text
+                        break
+
+            if start_idx != -1:
+                # Found the text in the source
+                hard["span"] = {
+                    "start": start_idx,
+                    "end": start_idx + len(span_text),
+                    "text": span_text
+                }
+            else:
+                # Fallback: if we can't find exact match, store in rationale
+                if n.rationale:
+                    hard["rationale"] = f"[Source: \"{n.span}\"] {n.rationale}"
+                else:
+                    hard["rationale"] = f"Source: \"{n.span}\""
+        if n.rationale and "rationale" not in hard:
             hard["rationale"] = n.rationale
         hard_nodes.append(hard)
 

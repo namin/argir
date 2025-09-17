@@ -11,6 +11,7 @@ Output a single JSON object with this structure:
     "nodes": [
       {
         "id": "<optional: n1, r1, etc>",
+        "span": "<IMPORTANT: the exact sentence(s) from the source text that this node represents>",
         "premises": [
           // Either a Statement or a Ref to another node
           {"pred": "...", "args": [{"value": "..."}], "polarity": "pos"/"neg"}

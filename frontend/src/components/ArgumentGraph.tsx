@@ -12,6 +12,8 @@ interface Node {
     consequents?: any[];
     exceptions?: any[];
   };
+  span?: string | { start: number; end: number; text: string };
+  rationale?: string;
 }
 
 interface Edge {
@@ -49,12 +51,36 @@ const DetailPane: React.FC<{ selectedItem: SelectedItem; onClose: () => void }> 
   const renderNodeDetails = (node: Node) => (
     <div className="node-details">
       <h3>Node: {node.id}</h3>
-      
+
+      {node.span && (
+        <div className="detail-section">
+          <h4>Evidence from text:</h4>
+          <div className="detail-content" style={{
+            fontStyle: 'italic',
+            backgroundColor: '#f5f5f5',
+            padding: '8px',
+            borderRadius: '4px',
+            border: '1px solid #ddd'
+          }}>
+            "{typeof node.span === 'object' ? node.span.text : node.span}"
+          </div>
+        </div>
+      )}
+
       {node.conclusion?.text && (
         <div className="detail-section">
           <h4>Conclusion:</h4>
           <div className="detail-content conclusion">
             {node.conclusion.text}
+          </div>
+        </div>
+      )}
+
+      {node.rationale && (
+        <div className="detail-section">
+          <h4>Rationale:</h4>
+          <div className="detail-content">
+            {node.rationale}
           </div>
         </div>
       )}
