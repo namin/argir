@@ -250,7 +250,7 @@ def compile_soft_ir(soft: SoftIR, *, existing_atoms: AtomTable | None = None, go
                         "source": source_id,
                         "target": target_id,
                         "kind": "support",
-                        "rationale": "Auto-generated from node reference"
+                        "rationale": "Premise"
                     })
                     existing_edges.add((source_id, target_id))
 
