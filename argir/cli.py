@@ -40,6 +40,7 @@ def main():
     parser.add_argument("--out", default="out", help="Output folder")
     parser.add_argument("--defeasible-fol", action="store_true", help="Export FOL with simple defeasible exceptions (~exceptions in antecedent)")
     parser.add_argument("--goal", help="Node id to use as the conjecture goal (overrides auto selection)")
+    parser.add_argument("--goal-hint", help="Text hint to help LLM identify the goal claim")
     parser.add_argument("--strict-fail", action="store_true", help="Fail on strict validation errors (for CI/CD)")
     parser.add_argument("--soft", action="store_true", help="Use soft IR extraction with deterministic canonicalization")
     parser.add_argument("--k-samples", type=int, default=1, help="Number of soft IR samples to try (picks best)")
@@ -68,6 +69,7 @@ def main():
         res = run_pipeline_soft(text,
                               fol_mode=("defeasible" if args.defeasible_fol else "classical"),
                               goal_id=args.goal,
+                              goal_hint=args.goal_hint,
                               k_samples=args.k_samples)
     else:
         res = run_pipeline(text, fol_mode=("defeasible" if args.defeasible_fol else "classical"), goal_id=args.goal)

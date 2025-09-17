@@ -57,6 +57,7 @@ function App() {
   const [text, setText] = useState('');
   const [folMode, setFolMode] = useState<'classical' | 'defeasible'>('classical');
   const [goalId, setGoalId] = useState('');
+  const [goalHint, setGoalHint] = useState('');
   const [useSoft, setUseSoft] = useState(true);
   const [kSamples, setKSamples] = useState(1);
   const [apiKey, setApiKey] = useState('');
@@ -106,6 +107,7 @@ function App() {
           text,
           fol_mode: folMode,
           goal_id: goalId || null,
+          goal_hint: goalHint || null,
           use_soft: useSoft,
           k_samples: kSamples,
           api_key: apiKey.trim() || null,
@@ -212,7 +214,20 @@ function App() {
                 </div>
 
                 <div className="form-group">
-                  <label htmlFor="goal-id">Goal Node ID:</label>
+                  <label htmlFor="goal-hint">Goal Hint (optional):</label>
+                  <input
+                    id="goal-hint"
+                    type="text"
+                    value={goalHint}
+                    onChange={(e) => setGoalHint(e.target.value)}
+                    placeholder='e.g., "We should use nuclear energy"'
+                    style={{ width: '100%' }}
+                  />
+                  <small>Help the system identify which claim to analyze by providing the text.</small>
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="goal-id">Goal Node ID (optional):</label>
                   <input
                     id="goal-id"
                     type="text"
@@ -226,7 +241,7 @@ function App() {
                       <option key={id} value={id} />
                     ))}
                   </datalist>
-                  <small>Typically C1, C2, etc. for conclusions. Leave empty to auto-detect.</small>
+                  <small>Explicitly specify a node ID if you know it. Leave empty to auto-detect.</small>
                 </div>
               </div>
 

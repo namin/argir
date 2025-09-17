@@ -32,7 +32,8 @@ app.add_middleware(
 class ArgirRequest(BaseModel):
     text: str
     fol_mode: str = "classical"  # "classical" or "defeasible"
-    goal_id: Optional[str] = None
+    goal_id: Optional[str] = None  # Explicit goal node ID (like C1, P2)
+    goal_hint: Optional[str] = None  # Goal text hint for LLM (like "We should use nuclear energy")
     use_soft: bool = False
     k_samples: int = 1
     api_key: Optional[str] = None  # For Gemini API key
@@ -69,6 +70,7 @@ def analyze_arguments(req: ArgirRequest, x_api_key: Optional[str] = Header(None)
                 req.text,
                 fol_mode=req.fol_mode,
                 goal_id=req.goal_id,
+                goal_hint=req.goal_hint,
                 k_samples=req.k_samples
             )
         else:
