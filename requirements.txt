@@ -4,3 +4,4 @@ pydantic
 google-genai
 joblib
 networkx
+spacy

@@ -1,7 +1,9 @@
 # argir/canonicalize.py
 from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
+import spacy
+from functools import lru_cache
 
 def _normalize_surface(s: str) -> str:
     """Simple normalization: lowercase, collapse spaces, replace with underscores.
@@ -12,30 +14,86 @@ def _normalize_surface(s: str) -> str:
     return s.replace(" ", "_")
 
 
-# Common morphological variants and synonyms mapping
-PREDICATE_CANON_MAP = {
-    # Verb forms
-    "rain": "raining",
-    "rains": "raining",
-    "rained": "raining",
-    "is_raining": "raining",
-    "wet": "wet",
-    "is_wet": "wet",
-    "gets_wet": "wet",
-    "become_wet": "wet",
-    # Common logical predicates
-    "implies": "implies",
-    "entails": "implies",
-    "therefore": "implies",
-    "supports": "supports",
-    "support": "supports",
-    "supporting": "supports",
-    # Attack predicates
-    "attacks": "attacks",
-    "attack": "attacks",
-    "attacking": "attacks",
-    "contradicts": "contradicts",
-    "contradict": "contradicts",
+@lru_cache(maxsize=1)
+def _get_nlp():
+    """Lazy load spaCy model - using small English model for efficiency.
+    Falls back to rule-based if spaCy not available.
+    """
+    try:
+        # Try to load the small English model
+        nlp = spacy.load("en_core_web_sm", disable=["parser", "ner"])
+    except OSError:
+        try:
+            # If not installed, try downloading it
+            import subprocess
+            subprocess.run(["python", "-m", "spacy", "download", "en_core_web_sm"],
+                         capture_output=True, check=False)
+            nlp = spacy.load("en_core_web_sm", disable=["parser", "ner"])
+        except:
+            # Fall back to blank model if download fails
+            nlp = spacy.blank("en")
+    return nlp
+
+def _lemmatize_predicate(pred: str) -> str:
+    """Lemmatize a predicate to its base form using spaCy.
+
+    Handles compound predicates with underscores by lemmatizing parts.
+    """
+    # Handle underscored compounds
+    if "_" in pred:
+        parts = pred.split("_")
+        # Remove auxiliary verb prefixes
+        aux_verbs = {"is", "was", "are", "were", "being", "been", "be",
+                    "has", "have", "had", "gets", "get", "got",
+                    "become", "becomes", "became", "do", "does", "did"}
+
+        # Filter out auxiliary verbs from the beginning
+        original_parts = parts.copy()
+        while parts and parts[0] in aux_verbs:
+            parts.pop(0)
+
+        if not parts:
+            return pred  # Shouldn't happen, but be safe
+
+        # If the remaining part is a gerund and we removed aux verbs, keep the gerund
+        if len(parts) == 1 and parts[0].endswith("ing") and len(original_parts) > len(parts):
+            # e.g., "is_raining" -> "raining"
+            return parts[0]
+
+        # Lemmatize remaining parts
+        nlp = _get_nlp()
+        lemmatized = []
+        for part in parts:
+            doc = nlp(part)
+            if doc:
+                lemmatized.append(doc[0].lemma_ if doc[0].lemma_ != "-PRON-" else part)
+            else:
+                lemmatized.append(part)
+
+        return "_".join(lemmatized)
+
+    # Simple predicate - use spaCy
+    nlp = _get_nlp()
+    doc = nlp(pred)
+    if doc:
+        lemma = doc[0].lemma_
+        # spaCy returns "-PRON-" for pronouns, keep original in that case
+        if lemma == "-PRON-":
+            return pred
+        # For gerunds, keep them as-is (states/activities)
+        if pred.endswith("ing") and lemma != pred:
+            # But do lemmatize if it's a auxiliary + verb pattern
+            return pred  # Keep gerund form for states
+        return lemma
+    return pred
+
+# Domain-specific synonyms - minimal set for logical operators
+# Let the LLM repairs handle most semantic unification
+SYNONYM_MAP = {
+    # Logical relations
+    "entail": "imply",
+    "therefore": "imply",
+    # Keep attack/contradict distinct from each other
 }
 
 
@@ -62,9 +120,12 @@ class AtomTable:
         # Simple normalization
         norm = _normalize_surface(surface_pred)
 
-        # Apply morphological canonicalization
-        if norm in PREDICATE_CANON_MAP:
-            norm = PREDICATE_CANON_MAP[norm]
+        # Apply lemmatization for morphological normalization
+        norm = _lemmatize_predicate(norm)
+
+        # Apply domain-specific synonyms (minimal)
+        if norm in SYNONYM_MAP:
+            norm = SYNONYM_MAP[norm]
 
         # Check if we've seen this exact form before
         if norm in self.alias:

@@ -18,7 +18,11 @@ You can run the package straight from source (no build needed).
 
 ```bash
 # Core dependencies (Python 3.9+)
-pip install "pydantic>=2.0" google-genai clingo joblib networkx
+
+pip install "pydantic>=2.0" google-genai clingo joblib networkx spacy
+
+# Download spaCy language model (required for lemmatization)
+python -m spacy download en_core_web_sm
 
 # System dependencies (optional):
 # - eprover: FOL theorem prover (install via package manager, e.g., apt/brew)
@@ -26,6 +30,7 @@ pip install "pydantic>=2.0" google-genai clingo joblib networkx
 # Note on dependencies:
 # - clingo: ASP solver for computing argumentation framework semantics
 # - joblib: Caching library for LLM responses (reduces API calls and costs)
+# - spacy: NLP library for systematic predicate lemmatization (replaces hardcoded maps)
 ```
 
 ---
