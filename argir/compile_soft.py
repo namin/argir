@@ -2,7 +2,7 @@
 from __future__ import annotations
 from typing import Dict, List, Tuple
 import re
-from .soft_ir import SoftIR, SoftNode, SoftStatement, SoftPremiseRef, SoftTerm
+from .soft_ir import SoftIR, SoftNode, SoftStatement, SoftPremiseRef, SoftTerm, SoftRule
 from .canonicalize import AtomTable
 
 # Variable detection pattern - only specific variable names (X, Y, Z, W, U, V) with optional digits
@@ -121,6 +121,20 @@ def compile_soft_ir(soft: SoftIR, *, existing_atoms: AtomTable | None = None, go
     hard_nodes: List[dict] = []
     for n in soft.graph.nodes:
         hard = {"id": idmap.get(n.id, n.id), "premises": []}
+
+        # Canonicalize fact nodes: premise-only nodes with no conclusion/rule
+        # Convert them to proper fact nodes (empty premises, fact in conclusion)
+        if (not n.rule and not n.conclusion and n.premises and
+            all(not isinstance(p, SoftPremiseRef) for p in n.premises)):
+            # This is a fact assertion node - move premises to conclusion
+            if len(n.premises) == 1:
+                # Single fact - move it to conclusion
+                n.conclusion = n.premises[0]
+                n.premises = []
+                # Add a "Given" rule to mark it as a fact
+                n.rule = SoftRule(name="Given", strict=True)
+            # Note: could handle multiple facts as conjunction here if needed
+
         if n.rule:
             # Canonicalize rule statements
             ants, cons, excs = [], [], []
@@ -133,13 +147,19 @@ def compile_soft_ir(soft: SoftIR, *, existing_atoms: AtomTable | None = None, go
             for x in n.rule.exceptions:
                 _, _, obj = _canon_stmt(x, at)
                 excs.append(obj)
+            # Determine appropriate scheme based on rule type
+            if n.rule.name == "Given":
+                scheme = "Fact"
+            else:
+                scheme = "If A then B"  # Default scheme
+
             hard["rule"] = {
                 "name": n.rule.name or "Conditional",
                 "strict": n.rule.strict,
                 "antecedents": ants,
                 "consequents": cons,
                 "exceptions": excs,
-                "scheme": "If A then B"  # Default scheme
+                "scheme": scheme
             }
         if n.conclusion:
             _, _, cobj = _canon_stmt(n.conclusion, at)
@@ -233,6 +253,26 @@ def compile_soft_ir(soft: SoftIR, *, existing_atoms: AtomTable | None = None, go
                    **({"attack_kind": e.attack_kind} if e.attack_kind else {}),
                    **({"rationale": e.rationale} if e.rationale else {})}
                   for e in soft.graph.edges]
+
+    # Auto-generate edges from node references if not already present
+    # When a node references another node via {"kind": "Ref", "ref": "node_id"},
+    # create a support edge from the referenced node to the current node
+    existing_edges = {(e["source"], e["target"]) for e in hard_edges}
+
+    for node in hard_nodes:
+        target_id = node["id"]
+        for premise in node.get("premises", []):
+            if isinstance(premise, dict) and premise.get("kind") == "Ref":
+                source_id = premise["ref"]
+                # Check if this edge already exists
+                if (source_id, target_id) not in existing_edges:
+                    hard_edges.append({
+                        "source": source_id,
+                        "target": target_id,
+                        "kind": "support",
+                        "rationale": "Premise"
+                    })
+                    existing_edges.add((source_id, target_id))
 
     # Handle goal - explicit parameter takes precedence
     final_goal_id = None
