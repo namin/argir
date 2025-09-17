@@ -3,3 +3,4 @@ uvicorn[standard]
 pydantic
 google-genai
 joblib
+networkx
