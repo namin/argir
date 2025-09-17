@@ -240,3 +240,40 @@ ARGIR is strict on atoms to make FOL sound and comparable.
 - **Version/path confusion**
   Use `python -m argir.cli -V` to see the active package path and version.
 
+---
+
+## 11) Architecture
+
+```
+text
+ └─▶ (soft) LLM  ──► Soft IR (IDs/Refs/Atoms/Spans)
+                      │
+                      ▼
+                   Compile           Strict checks
+                   (normalize)  ──►  (structure, atoms, refs)
+                      │
+                      ├─▶ AF projection ──► clingo semantics (grounded|preferred|stable)
+                      │
+                      └─▶ FOL export    ──► TPTP/FOF (+ conjecture), optional E‑prover
+```
+
+**Key modules**
+
+- `argir/soft_ir.py` — minimal schema for LLM output
+- `argir/compile_soft.py` — soft → strict ARGIR
+- `argir/core/model.py` — typed strict ARGIR (statements, rules, edges, graph)
+- `argir/canonicalize.py` — canonical predicate table + examples
+- `argir/checks/*` — structural checks and warnings
+- `argir/semantics/*` — AF/APX, clingo backend, helpers
+- `argir/fol/*` — FOL AST, TPTP serializer, translation from ARGIR
+- `argir/diagnostics.py` — issue detectors
+- `argir/repairs/*` — AF enforcement & FOL abduction
+- `argir/report/*` — report renderer
+- `server.py` — FastAPI integration
+- `frontend/` — Vite/React dev UI
+
+**Design notes**
+
+- Soft IR forbids heavy structure (no strict atoms on first pass). It’s compiled and validated before AF/FOL.
+- FOL export avoids “linkage axioms” that can create **vacuous proofs**; the conjecture targets a selected node.
+- AF semantics use `clingo` via the Python package.
