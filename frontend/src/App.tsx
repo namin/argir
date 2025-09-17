@@ -213,17 +213,20 @@ function App() {
 
                 <div className="form-group">
                   <label htmlFor="goal-id">Goal Node ID:</label>
-                  <select
+                  <input
                     id="goal-id"
+                    type="text"
                     value={goalId}
                     onChange={(e) => setGoalId(e.target.value)}
-                  >
-                    <option value="">(auto-select)</option>
+                    placeholder="auto-detect (e.g., C1, C2)"
+                    list="node-ids"
+                  />
+                  <datalist id="node-ids">
                     {nodeIds.map(id => (
-                      <option key={id} value={id}>{id}</option>
+                      <option key={id} value={id} />
                     ))}
-                  </select>
-                  <small>Leave empty for auto-selection</small>
+                  </datalist>
+                  <small>Typically C1, C2, etc. for conclusions. Leave empty to auto-detect.</small>
                 </div>
               </div>
 

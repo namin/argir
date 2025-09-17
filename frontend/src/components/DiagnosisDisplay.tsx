@@ -62,8 +62,26 @@ export const DiagnosisDisplay: React.FC<DiagnosisDisplayProps> = ({ issues, repa
     );
   }
 
+  const hasUnverifiedRepairs = repairs.some(r =>
+    r.verification?.fol_entailed && !r.verification?.af_goal_accepted
+  );
+
   return (
     <div className="diagnosis-display">
+      {hasUnverifiedRepairs && (
+        <div className="info-box" style={{
+          background: '#fff3cd',
+          border: '1px solid #ffc107',
+          borderRadius: '4px',
+          padding: '12px',
+          marginBottom: '16px',
+          fontSize: '14px'
+        }}>
+          💡 <strong>Tip:</strong> Some repairs verify in FOL but not in the argumentation framework.
+          Try setting an explicit goal node (e.g., "C1" or "C2") in the analysis options above to improve repair targeting.
+        </div>
+      )}
+
       <div className="issues-header">
         <h3>Detected Issues ({issues.length})</h3>
       </div>
@@ -157,10 +175,14 @@ export const DiagnosisDisplay: React.FC<DiagnosisDisplayProps> = ({ issues, repa
                           ) : (
                             <span className="not-verified">❌ FOL failed</span>
                           )}
-                          {repair.verification.af_goal_accepted !== null && !repair.verification.af_goal_accepted && (
-                            <span className="af-status" title="No clear goal was identified for AF acceptance checking">
-                              ⚠️ AF goal not set
-                            </span>
+                          {repair.verification.af_goal_accepted !== undefined && (
+                            repair.verification.af_goal_accepted ? (
+                              <span className="verified">✅ AF accepted</span>
+                            ) : (
+                              <span className="af-status" title="Goal not accepted in argumentation framework. Try setting an explicit goal node (e.g., C1) in the analysis options.">
+                                ⚠️ AF: goal not accepted
+                              </span>
+                            )
                           )}
                         </div>
                       )}
