@@ -73,14 +73,23 @@ def detect_unsupported_inferences(
         # Also check AF acceptance
         af_accepted = is_node_accepted_in_af(argir, node.id, semantics)
 
-        # An inference is unsupported if:
-        # 1. It has no premises or empty premises (and has a conclusion to infer)
-        # 2. The premises don't support the conclusion
+        # Check for support in two ways:
+        # 1. Explicit premises in the node
         has_premises = len(node.premises) > 0
 
-        # If no premises and has a conclusion, it's unsupported
-        # If has premises but they don't support conclusion, it's unsupported
-        if not has_premises or not is_supported:
+        # 2. Incoming support edges
+        has_support_edges = any(
+            edge.target == node.id and edge.kind == "support"
+            for edge in argir.graph.edges
+        )
+
+        # Node has support if it has either premises OR incoming support edges
+        has_support = has_premises or has_support_edges
+
+        # An inference is unsupported if:
+        # 1. It has no support (neither premises nor incoming edges)
+        # 2. The premises don't support the conclusion (if premises exist)
+        if not has_support or (has_premises and not is_supported):
             issue_count += 1
             issues.append(Issue(
                 id=f"I-{issue_count:03d}",
@@ -91,10 +100,12 @@ def detect_unsupported_inferences(
                     "conclusion": node.conclusion.model_dump() if node.conclusion else None,
                     "af_rejected": not af_accepted,
                     "fol_check_failed": not is_supported,
-                    "no_premises": not has_premises
+                    "no_premises": not has_premises,
+                    "has_support_edges": has_support_edges,
+                    "no_support": not has_support
                 },
                 detector_name="inference_support",
-                notes=f"Inference {node.id} lacks support: {'no premises provided' if not has_premises else 'premises do not entail conclusion'}"
+                notes=f"Inference {node.id} lacks support: {'no support (neither premises nor incoming edges)' if not has_support else 'premises do not entail conclusion'}"
             ))
 
     return issues
