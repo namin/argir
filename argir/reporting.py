@@ -203,19 +203,48 @@ def format_repair(repair: Repair) -> str:
     lines.append("\n**Verification:**")
     verif = repair.verification
 
-    if verif.af_goal_accepted:
-        lines.append(f"- AF ({verif.af_semantics}): goal accepted ✅")
-    else:
-        lines.append(f"- AF ({verif.af_semantics}): goal not accepted ❌")
-
-    if verif.af_optimal:
-        lines.append(f"- Optimality: minimal (cost={repair.cost})")
-
+    # FOL verification
     if verif.fol_entailed is not None:
         if verif.fol_entailed:
             lines.append("- FOL (E-prover): entailed ✅")
         else:
             lines.append("- FOL (E-prover): not entailed ❌")
+
+    # AF verification - use rich data if available
+    af_impact = verif.artifacts.get("af_impact") if verif.artifacts else None
+
+    if af_impact:
+        # Rich AF impact information
+        target = af_impact.get("target", {})
+        goal = af_impact.get("goal", {})
+
+        if target.get("id"):
+            if target.get("changed"):
+                status = "accepted" if target.get("after") else "rejected"
+                lines.append(f"- AF ({verif.af_semantics}): node {target['id']} becomes {status} ✅")
+            else:
+                status = "accepted" if target.get("after") else "not accepted"
+                lines.append(f"- AF ({verif.af_semantics}): node {target['id']} remains {status} ℹ️")
+
+        if goal and goal.get("id") and goal["id"] != target.get("id"):
+            if goal.get("changed"):
+                status = "accepted" if goal.get("after") else "rejected"
+                lines.append(f"- AF ({verif.af_semantics}): goal {goal['id']} becomes {status} ✅")
+            else:
+                status = "accepted" if goal.get("after") else "not accepted"
+                lines.append(f"- AF ({verif.af_semantics}): goal {goal['id']} remains {status} ℹ️")
+
+        if af_impact.get("explanation"):
+            lines.append(f"  Note: {af_impact['explanation']}")
+    else:
+        # Fallback to legacy format
+        if verif.af_goal_accepted:
+            lines.append(f"- AF ({verif.af_semantics}): goal accepted ✅")
+        else:
+            lines.append(f"- AF ({verif.af_semantics}): goal not accepted ❌")
+
+    if verif.af_optimal:
+        lines.append(f"- Optimality: minimal (cost={repair.cost})")
 
     # Machine-readable patch
     lines.append("\n**Patch (machine-readable):**")

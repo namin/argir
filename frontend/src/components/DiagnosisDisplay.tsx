@@ -157,18 +157,57 @@ export const DiagnosisDisplay: React.FC<DiagnosisDisplayProps> = ({ issues, repa
                           ) : (
                             <span className="not-verified">❌ FOL: Repair is not valid</span>
                           )}
-                          {repair.verification.af_goal_accepted !== undefined && (
-                            <>
-                              {' '}
-                              {repair.verification.af_goal_accepted ? (
-                                <span className="verified">✅ AF: Improves goal acceptance</span>
-                              ) : (
-                                <span className="af-status" title="This repair doesn't improve the goal's acceptance status in the argumentation framework">
-                                  ℹ️ AF: No impact on goal
-                                </span>
-                              )}
-                            </>
-                          )}
+
+                          {(() => {
+                            const af = repair.verification.artifacts?.af_impact;
+                            const sem = repair.verification.af_semantics || "grounded";
+
+                            if (!af) {
+                              if (repair.verification.af_goal_accepted !== undefined) {
+                                return (
+                                  <>
+                                    {' '}
+                                    {repair.verification.af_goal_accepted ? (
+                                      <span className="verified">✅ AF: Improves goal acceptance</span>
+                                    ) : (
+                                      <span className="af-status">ℹ️ AF: No impact on goal</span>
+                                    )}
+                                  </>
+                                );
+                              }
+                              return null;
+                            }
+
+                            return (
+                              <>
+                                {' '}
+                                {af.target && (
+                                  <span className={af.target.changed ? "verified" : "af-status"}>
+                                    {af.target.changed
+                                      ? `✅ AF (${sem}): Node ${af.target.id} ${af.target.after ? 'becomes accepted' : 'status changed'}`
+                                      : `ℹ️ AF (${sem}): Node ${af.target.id} remains ${af.target.after ? 'accepted' : 'not accepted'}`
+                                    }
+                                  </span>
+                                )}
+
+                                {af.goal && af.goal.id && af.goal.id !== af.target?.id && (
+                                  <>
+                                    {' | '}
+                                    <span className={af.goal.changed ? "verified" : "af-status"}>
+                                      {af.goal.changed
+                                        ? `✅ Goal ${af.goal.id} ${af.goal.after ? 'becomes accepted' : 'becomes rejected'}`
+                                        : `ℹ️ Goal ${af.goal.id} unchanged`
+                                      }
+                                    </span>
+                                  </>
+                                )}
+
+                                {af.explanation && (
+                                  <span className="af-explanation" title={af.explanation}> ⓘ</span>
+                                )}
+                              </>
+                            );
+                          })()}
                         </div>
                       )}
                     </div>

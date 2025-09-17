@@ -55,18 +55,49 @@ def abduce_missing_premises(
         # Check for minimality
         atoms = _irredundant_minimal(axioms, goal, atoms, timeout)
         patch = _make_patch(target, atoms)
-        # Use the actual goal_id from metadata, not the target_id (which is the node with the issue)
-        actual_goal_id = (argir.metadata or {}).get("goal_id", target_id)
-        af_sem, af_ok = _af_after_patch(argir, actual_goal_id, patch)
+
+        # Comprehensive AF verification: check both target (repaired node) and goal
+        from ..diagnostics import is_node_accepted_in_af
+        af_semantics = "grounded"
+
+        # Before patch: check current AF status
+        target_before = bool(is_node_accepted_in_af(argir, target_id, af_semantics))
+
+        # After patch: check AF status for target
+        patched_argir = _apply_patch(copy.deepcopy(argir), patch)
+        target_after = bool(is_node_accepted_in_af(patched_argir, target_id, af_semantics))
+
+        # Also check goal if it's different from target
+        goal_id = (argir.metadata or {}).get("goal_id")
+        goal_before = None
+        goal_after = None
+        if goal_id and goal_id != target_id:
+            goal_before = bool(is_node_accepted_in_af(argir, goal_id, af_semantics))
+            goal_after = bool(is_node_accepted_in_af(patched_argir, goal_id, af_semantics))
 
         verification = Verification(
-            af_semantics=af_sem or "grounded",
-            af_goal_accepted=bool(af_ok),
+            af_semantics=af_semantics,
+            af_goal_accepted=bool(goal_after if goal_id else target_after),  # Keep for any legacy uses
             af_optimal=False,
             fol_entailed=True,
             artifacts={
                 "eprover_ms": ms,
-                "hypothesis_tptp": [_tptp(a) for a in atoms]
+                "hypothesis_tptp": [_tptp(a) for a in atoms],
+                "af_impact": {
+                    "target": {
+                        "id": target_id,
+                        "before": target_before,
+                        "after": target_after,
+                        "changed": target_after != target_before
+                    },
+                    "goal": {
+                        "id": goal_id,
+                        "before": goal_before,
+                        "after": goal_after,
+                        "changed": (goal_after != goal_before) if goal_id else None
+                    } if goal_id else None,
+                    "explanation": "Support edges don't affect AF acceptance - only attacks matter"
+                }
             },
         )
         repairs.append(Repair(
@@ -221,19 +252,13 @@ def _make_patch(target: InferenceStep, atoms: List[Atom]) -> Patch:
         patch.fol_hypotheses.append(_tptp(a))
     return patch
 
-def _af_after_patch(argir: ARGIR, goal_id: str, patch: Patch) -> Tuple[Optional[str], Optional[bool]]:
-    try:
-        from ..diagnostics import is_node_accepted_in_af
-        patched = _apply_patch(copy.deepcopy(argir), patch)
-        return "grounded", bool(is_node_accepted_in_af(patched, goal_id, "grounded"))
-    except Exception:
-        return None, None
 
 def _apply_patch(argir: ARGIR, patch: Patch) -> ARGIR:
     # add nodes
     for n in patch.add_nodes:
         atoms = [Atom(**a) for a in (n.get("atoms") or [])]
-        argir.graph.nodes.append(InferenceStep(id=n["id"], premises=[], conclusion=Statement(atoms=atoms)))
+        text = n.get("text", " and ".join(_tptp(a) for a in atoms))
+        argir.graph.nodes.append(InferenceStep(id=n["id"], premises=[], conclusion=Statement(atoms=atoms, text=text)))
     # add edges
     for e in patch.add_edges:
         argir.graph.edges.append(Edge(source=e["source"], target=e["target"], kind="support"))
