@@ -62,26 +62,8 @@ export const DiagnosisDisplay: React.FC<DiagnosisDisplayProps> = ({ issues, repa
     );
   }
 
-  const hasUnverifiedRepairs = repairs.some(r =>
-    r.verification?.fol_entailed && !r.verification?.af_goal_accepted
-  );
-
   return (
     <div className="diagnosis-display">
-      {hasUnverifiedRepairs && (
-        <div className="info-box" style={{
-          background: '#fff3cd',
-          border: '1px solid #ffc107',
-          borderRadius: '4px',
-          padding: '12px',
-          marginBottom: '16px',
-          fontSize: '14px'
-        }}>
-          💡 <strong>Tip:</strong> Some repairs verify in FOL but not in the argumentation framework.
-          Try setting an explicit goal node (e.g., "C1" or "C2") in the analysis options above to improve repair targeting.
-        </div>
-      )}
-
       <div className="issues-header">
         <h3>Detected Issues ({issues.length})</h3>
       </div>
@@ -171,18 +153,21 @@ export const DiagnosisDisplay: React.FC<DiagnosisDisplayProps> = ({ issues, repa
                         <div className="verification">
                           <strong>Verification:</strong>
                           {repair.verification.fol_entailed ? (
-                            <span className="verified">✅ FOL verified</span>
+                            <span className="verified">✅ FOL: Repair is logically valid</span>
                           ) : (
-                            <span className="not-verified">❌ FOL failed</span>
+                            <span className="not-verified">❌ FOL: Repair is not valid</span>
                           )}
                           {repair.verification.af_goal_accepted !== undefined && (
-                            repair.verification.af_goal_accepted ? (
-                              <span className="verified">✅ AF accepted</span>
-                            ) : (
-                              <span className="af-status" title="Goal not accepted in argumentation framework. Try setting an explicit goal node (e.g., C1) in the analysis options.">
-                                ⚠️ AF: goal not accepted
-                              </span>
-                            )
+                            <>
+                              {' '}
+                              {repair.verification.af_goal_accepted ? (
+                                <span className="verified">✅ AF: Improves goal acceptance</span>
+                              ) : (
+                                <span className="af-status" title="This repair doesn't improve the goal's acceptance status in the argumentation framework">
+                                  ℹ️ AF: No impact on goal
+                                </span>
+                              )}
+                            </>
                           )}
                         </div>
                       )}
