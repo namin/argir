@@ -18,14 +18,11 @@ You can run the package straight from source (no build needed).
 
 ```bash
 # Core dependencies (Python 3.9+)
-<<<<<<< Updated upstream
-pip install "pydantic>=2.0" google-genai clingo joblib networkx
-=======
-pip install "pydantic>=2.0" google-genai clingo joblib spacy
+
+pip install "pydantic>=2.0" google-genai clingo joblib networkx spacy
 
 # Download spaCy language model (required for lemmatization)
 python -m spacy download en_core_web_sm
->>>>>>> Stashed changes
 
 # System dependencies (optional):
 # - eprover: FOL theorem prover (install via package manager, e.g., apt/brew)
