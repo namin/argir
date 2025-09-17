@@ -2,7 +2,7 @@
 from __future__ import annotations
 from typing import Dict, List, Tuple
 import re
-from .soft_ir import SoftIR, SoftNode, SoftStatement, SoftPremiseRef, SoftTerm
+from .soft_ir import SoftIR, SoftNode, SoftStatement, SoftPremiseRef, SoftTerm, SoftRule
 from .canonicalize import AtomTable
 
 # Variable detection pattern - only specific variable names (X, Y, Z, W, U, V) with optional digits
@@ -121,6 +121,20 @@ def compile_soft_ir(soft: SoftIR, *, existing_atoms: AtomTable | None = None, go
     hard_nodes: List[dict] = []
     for n in soft.graph.nodes:
         hard = {"id": idmap.get(n.id, n.id), "premises": []}
+
+        # Canonicalize fact nodes: premise-only nodes with no conclusion/rule
+        # Convert them to proper fact nodes (empty premises, fact in conclusion)
+        if (not n.rule and not n.conclusion and n.premises and
+            all(not isinstance(p, SoftPremiseRef) for p in n.premises)):
+            # This is a fact assertion node - move premises to conclusion
+            if len(n.premises) == 1:
+                # Single fact - move it to conclusion
+                n.conclusion = n.premises[0]
+                n.premises = []
+                # Add a "Given" rule to mark it as a fact
+                n.rule = SoftRule(name="Given", strict=True)
+            # Note: could handle multiple facts as conjunction here if needed
+
         if n.rule:
             # Canonicalize rule statements
             ants, cons, excs = [], [], []
@@ -133,13 +147,19 @@ def compile_soft_ir(soft: SoftIR, *, existing_atoms: AtomTable | None = None, go
             for x in n.rule.exceptions:
                 _, _, obj = _canon_stmt(x, at)
                 excs.append(obj)
+            # Determine appropriate scheme based on rule type
+            if n.rule.name == "Given":
+                scheme = "Fact"
+            else:
+                scheme = "If A then B"  # Default scheme
+
             hard["rule"] = {
                 "name": n.rule.name or "Conditional",
                 "strict": n.rule.strict,
                 "antecedents": ants,
                 "consequents": cons,
                 "exceptions": excs,
-                "scheme": "If A then B"  # Default scheme
+                "scheme": scheme
             }
         if n.conclusion:
             _, _, cobj = _canon_stmt(n.conclusion, at)
