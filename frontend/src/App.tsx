@@ -202,28 +202,16 @@ function App() {
 
               <div className="options-row">
                 <div className="form-group">
-                  <label htmlFor="fol-mode">FOL Mode:</label>
-                  <select
-                    id="fol-mode"
-                    value={folMode}
-                    onChange={(e) => setFolMode(e.target.value as 'classical' | 'defeasible')}
-                  >
-                    <option value="classical">Classical</option>
-                    <option value="defeasible">Defeasible (exceptions become negated conditions)</option>
-                  </select>
-                </div>
-
-                <div className="form-group">
                   <label htmlFor="goal-hint">Goal Hint (optional):</label>
                   <input
                     id="goal-hint"
                     type="text"
                     value={goalHint}
                     onChange={(e) => setGoalHint(e.target.value)}
-                    placeholder='e.g., "We should use nuclear energy"'
+                    placeholder=""
                     style={{ width: '100%' }}
                   />
-                  <small>Help the system identify which claim to analyze by providing the text.</small>
+                  <small>e.g., a sentence from the text</small>
                 </div>
 
                 <div className="form-group">
@@ -233,7 +221,7 @@ function App() {
                     type="text"
                     value={goalId}
                     onChange={(e) => setGoalId(e.target.value)}
-                    placeholder="auto-detect (e.g., C1, C2)"
+                    placeholder="auto-detect"
                     list="node-ids"
                   />
                   <datalist id="node-ids">
@@ -241,7 +229,19 @@ function App() {
                       <option key={id} value={id} />
                     ))}
                   </datalist>
-                  <small>Explicitly specify a node ID if you know it. Leave empty to auto-detect.</small>
+                  <small>Can specify a node ID (e.g. C1) on a re-analyze. Leave empty to auto-detect.</small>
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="fol-mode">FOL Mode:</label>
+                  <select
+                    id="fol-mode"
+                    value={folMode}
+                    onChange={(e) => setFolMode(e.target.value as 'classical' | 'defeasible')}
+                  >
+                    <option value="classical">Classical</option>
+                    <option value="defeasible">Defeasible (exceptions become negated conditions)</option>
+                  </select>
                 </div>
               </div>
 
