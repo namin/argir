@@ -57,6 +57,12 @@ def enforce_goal(
     # Convert models to repairs
     for i, model in enumerate(models):
         patch = edits_to_patch(model, argir)
+        cost = count_edits(model)
+
+        # Skip empty repairs (no actual changes)
+        if cost == 0 and not patch.af_edits:
+            continue
+
         verification = verify_af_repair(argir, patch, goal_id, semantics)
 
         repair = Repair(
@@ -64,7 +70,7 @@ def enforce_goal(
             issue_id=issue.id,
             kind="AF",
             patch=patch,
-            cost=count_edits(model),
+            cost=cost,
             verification=verification
         )
         repairs.append(repair)

@@ -146,6 +146,22 @@ export const DiagnosisDisplay: React.FC<DiagnosisDisplayProps> = ({ issues, repa
                               </ul>
                             </div>
                           )}
+                          {repair.patch.af_edits?.length > 0 && (
+                            <div className="action">
+                              <strong>AF modifications:</strong>
+                              <ul>
+                                {repair.patch.af_edits.map((edit: any, i: number) => {
+                                  const [action, source, target] = edit;
+                                  if (action === 'add_att') {
+                                    return <li key={i}>➕ Add attack: {source} ⚔️ {target}</li>;
+                                  } else if (action === 'del_att') {
+                                    return <li key={i}>➖ Remove attack: {source} ⚔️ {target}</li>;
+                                  }
+                                  return <li key={i}>{action}: {source} → {target}</li>;
+                                })}
+                              </ul>
+                            </div>
+                          )}
                         </div>
                       )}
 
