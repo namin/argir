@@ -82,8 +82,9 @@ def llm_draft(text: str) -> Tuple[Dict[str, Any], Dict[str, Any]]:
 
 def get_llm() -> Callable[[str, str], str]:
     """Return a callable LLM function for soft pipeline."""
+    from .llm import init_llm_client_if_no_cache
     def llm_call(system_prompt: str, user_prompt: str) -> str:
-        client = init_llm_client(required=True)
+        client = init_llm_client_if_no_cache(required=True)
         combined = f"{system_prompt}\n\n{user_prompt}"
         cfg = types.GenerateContentConfig(temperature=0.2, response_mime_type="application/json")
         resp = generate_content(client, contents=combined, config=cfg, model=LLM_MODEL)
