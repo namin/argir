@@ -67,6 +67,10 @@ def detect_unsupported_inferences(
         if not node.conclusion:
             continue
 
+        # Skip fact/given nodes - they don't need support
+        if node.rule and node.rule.name == "Given":
+            continue
+
         # Check if premises entail conclusion
         is_supported = check_inference_support(node, argir, eprover_path)
 
