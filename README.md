@@ -106,6 +106,10 @@ The **AF Semantics** section in `report.md` shows accepted arguments under diffe
 
 For a simpler, see `WEB_README.md`
 
+The web frontend is publicly available at [argir.metareflective.app](https://argir.metareflective.app/).
+You can replay [past saved queries](https://argir.metareflective.app/saved/).
+To run your own new queries, you can bring your own Gemini API key. Anyone can [get a free-tier key](https://ai.google.dev/gemini-api/docs/api-key).
+
 ---
 
 ## 5) Tests
