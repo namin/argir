@@ -21,7 +21,8 @@ export function SavedQueries() {
         setLoading(false);
       })
       .catch(err => {
-        setError('Failed to load saved queries');
+        console.error('Failed to load saved queries:', err);
+        setError(`Failed to load saved queries: ${err.message || err}`);
         setLoading(false);
       });
   }, []);
