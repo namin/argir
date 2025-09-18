@@ -6,7 +6,7 @@
 
 > A clean, strict, and analyzable pipeline from **natural language → argument graph → AF semantics → FOL (TPTP)**.
 
-See also [Argument Debugger](https://github.com/namin/argument-debugger), an LLM+ASP system for analyzing and repairing arguments.
+A follow-up from [Argument Debugger](https://github.com/namin/argument-debugger), an LLM+ASP system for analyzing and repairing arguments.
 
 This README covers setup, CLI usage, LLM configuration, generated outputs, testing, and the core IR contract.
 
