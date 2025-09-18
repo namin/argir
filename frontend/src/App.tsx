@@ -7,6 +7,7 @@ import { DiagnosisDisplay } from './components/DiagnosisDisplay';
 
 type ArgirResult = {
   success: boolean;
+  saved_hash?: string;
   result: {
     report_md: string;
     argir: any;
@@ -68,10 +69,34 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Load saved values from localStorage
+  // Load saved values from localStorage or URL parameter
   useEffect(() => {
-    const savedText = localStorage.getItem('argir:text');
-    if (savedText) setText(savedText);
+    // Check for saved query in URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const savedHash = urlParams.get('saved');
+
+    if (savedHash) {
+      // Load saved query from server
+      fetch(`/api/saved/${savedHash}`)
+        .then(res => res.json())
+        .then(data => {
+          setText(data.text || '');
+          setFolMode(data.fol_mode || 'classical');
+          setGoalId(data.goal_id || '');
+          setGoalHint(data.goal_hint || '');
+          setUseSoft(data.use_soft ?? true);
+          setKSamples(data.k_samples || 1);
+          setEnableDiagnosis(data.enable_diagnosis ?? true);
+          setEnableRepair(data.enable_repair ?? true);
+        })
+        .catch(err => {
+          console.error('Failed to load saved query:', err);
+        });
+    } else {
+      // Load from localStorage as fallback
+      const savedText = localStorage.getItem('argir:text');
+      if (savedText) setText(savedText);
+    }
 
     const savedApiKey = localStorage.getItem('argir:apikey');
     if (savedApiKey) setApiKey(savedApiKey);
@@ -158,6 +183,12 @@ function App() {
           <span className="subtitle">Argument Graph Intermediate Representation</span>
         </div>
         <div className="spacer" />
+        <a
+          href="/saved"
+          style={{ marginRight: '1rem', color: '#1976d2', textDecoration: 'none' }}
+        >
+          📚 Saved Queries
+        </a>
         <input
           type="password"
           value={apiKey}
@@ -327,6 +358,21 @@ function App() {
                   fontSize: '14px'
                 }}>
                   ℹ️ Analysis used goal node: <strong>{result.result.argir.metadata.goal_id}</strong>
+                </div>
+              )}
+
+              {result?.saved_hash && (
+                <div className="info" style={{
+                  background: '#e8f5e9',
+                  border: '1px solid #4caf50',
+                  borderRadius: '4px',
+                  padding: '8px 12px',
+                  marginTop: '12px',
+                  fontSize: '14px'
+                }}>
+                  ✅ Query saved! Share this link: <a href={`?saved=${result.saved_hash}`} style={{ fontWeight: 'bold' }}>
+                    {window.location.origin}/?saved={result.saved_hash}
+                  </a>
                 </div>
               )}
 
