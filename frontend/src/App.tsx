@@ -183,6 +183,12 @@ function App() {
           <span className="subtitle">Argument Graph Intermediate Representation</span>
         </div>
         <div className="spacer" />
+        <a
+          href="/saved"
+          style={{ marginRight: '1rem', color: '#1976d2', textDecoration: 'none' }}
+        >
+          📚 Saved Queries
+        </a>
         <input
           type="password"
           value={apiKey}
