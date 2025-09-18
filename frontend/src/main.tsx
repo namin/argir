@@ -8,7 +8,7 @@ import './index.css'
 const Router = () => {
   const path = window.location.pathname;
 
-  if (path === '/saved') {
+  if (path === '/saved' || path === '/saved.html') {
     return <SavedQueries />;
   }
 
