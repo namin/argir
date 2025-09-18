@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 import os
-from typing import Optional
+import json
+import hashlib
+from datetime import datetime
+from pathlib import Path
+from typing import Optional, List, Dict, Any
 from fastapi import FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -162,10 +166,82 @@ def analyze_arguments(req: ArgirRequest, x_api_key: Optional[str] = Header(None)
                 "warnings": result['validation_issues']
             }
 
+        # Save the query if successful
+        saved_hash = save_query(req)
+        response["saved_hash"] = saved_hash
+
         return response
 
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Analysis failed: {str(e)}")
+
+def save_query(req: ArgirRequest) -> str:
+    """Save a query to the saved/ directory and return its hash"""
+    saved_dir = Path("saved")
+    saved_dir.mkdir(exist_ok=True)
+
+    # Create query data with timestamp
+    query_data = {
+        "text": req.text,
+        "fol_mode": req.fol_mode,
+        "goal_id": req.goal_id,
+        "goal_hint": req.goal_hint,
+        "use_soft": req.use_soft,
+        "k_samples": req.k_samples,
+        "enable_diagnosis": req.enable_diagnosis,
+        "enable_repair": req.enable_repair,
+        "semantics": req.semantics,
+        "max_af_edits": req.max_af_edits,
+        "max_abduce": req.max_abduce,
+        "timestamp": datetime.now().isoformat()
+    }
+
+    # Generate hash from the query content (excluding timestamp)
+    query_str = json.dumps({k: v for k, v in query_data.items() if k != "timestamp"}, sort_keys=True)
+    query_hash = hashlib.sha256(query_str.encode()).hexdigest()[:12]
+
+    # Save to file
+    file_path = saved_dir / f"{query_hash}.json"
+    with open(file_path, 'w') as f:
+        json.dump(query_data, f, indent=2)
+
+    return query_hash
+
+@app.get("/api/saved")
+def list_saved_queries() -> List[Dict[str, Any]]:
+    """List all saved queries with previews"""
+    saved_dir = Path("saved")
+    if not saved_dir.exists():
+        return []
+
+    queries = []
+    for file_path in saved_dir.glob("*.json"):
+        try:
+            with open(file_path) as f:
+                data = json.load(f)
+                queries.append({
+                    "hash": file_path.stem,
+                    "text": data.get("text", "")[:100] + ("..." if len(data.get("text", "")) > 100 else ""),
+                    "timestamp": data.get("timestamp"),
+                    "fol_mode": data.get("fol_mode"),
+                    "goal_id": data.get("goal_id")
+                })
+        except:
+            continue
+
+    # Sort by timestamp (newest first)
+    queries.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+    return queries
+
+@app.get("/api/saved/{query_hash}")
+def get_saved_query(query_hash: str) -> Dict[str, Any]:
+    """Retrieve a specific saved query by hash"""
+    file_path = Path("saved") / f"{query_hash}.json"
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="Saved query not found")
+
+    with open(file_path) as f:
+        return json.load(f)
 
 if __name__ == "__main__":
     import uvicorn
