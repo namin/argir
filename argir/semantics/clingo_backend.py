@@ -8,6 +8,13 @@ def parse_apx_text(apx_text: str) -> Tuple[List[str], Set[Tuple[str, str]]]:
     atts = []
     arg_set = set()
 
+    def unquote(s: str) -> str:
+        """Remove quotes from identifier if present."""
+        s = s.strip()
+        if len(s) >= 2 and s[0] == '"' and s[-1] == '"':
+            return s[1:-1]
+        return s
+
     for line in apx_text.strip().splitlines():
         line = line.strip()
         if not line or line.startswith('%'):
@@ -15,7 +22,7 @@ def parse_apx_text(apx_text: str) -> Tuple[List[str], Set[Tuple[str, str]]]:
 
         # Parse arg(X).
         if line.startswith('arg(') and line.endswith(').'):
-            arg = line[4:-2].strip()
+            arg = unquote(line[4:-2])
             if arg not in arg_set:
                 args.append(arg)
                 arg_set.add(arg)
@@ -23,9 +30,24 @@ def parse_apx_text(apx_text: str) -> Tuple[List[str], Set[Tuple[str, str]]]:
         # Parse att(X,Y).
         elif line.startswith('att(') and line.endswith(').'):
             content = line[4:-2].strip()
-            parts = content.split(',')
+            # Split by comma, but handle quoted identifiers
+            parts = []
+            current = ""
+            in_quotes = False
+            for char in content:
+                if char == '"':
+                    in_quotes = not in_quotes
+                    current += char
+                elif char == ',' and not in_quotes:
+                    parts.append(current.strip())
+                    current = ""
+                else:
+                    current += char
+            if current:
+                parts.append(current.strip())
+
             if len(parts) == 2:
-                src, tgt = parts[0].strip(), parts[1].strip()
+                src, tgt = unquote(parts[0]), unquote(parts[1])
                 atts.append((src, tgt))
                 # Ensure both atoms are in arguments
                 if src not in arg_set:
