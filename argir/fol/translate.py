@@ -282,16 +282,37 @@ def argir_to_fof(u: ARGIR, *, fol_mode: str = "classical", goal_id: Optional[str
     out: List[Tuple[str,str]] = []
     id2node = {n.id: n for n in u.graph.nodes}
 
-    # Collect what conclusions are derived
+    # Collect what conclusions are derived (by formula text)
     concluded_stmts = set()
     for n in u.graph.nodes:
         if n.conclusion:
-            # Create a canonical key for the statement
             concluded_stmts.add(formula(stmt_to_formula(n.conclusion)))
 
-    # Export rules (including implicit rules IR_*)
+    # Compute incoming support indegrees per node
+    in_support: dict[str,int] = {n.id: 0 for n in u.graph.nodes}
+    for e in u.graph.edges:
+        if e.kind == "support" and e.target in in_support:
+            in_support[e.target] += 1
+
+    # Pre-pick goal (so we can avoid exporting it as a fact)
+    chosen = choose_goal_node(u, goal_id=goal_id)
+    goal_formula_str = None
+    if chosen:
+        g = id2node.get(chosen)
+        if g and g.conclusion:
+            goal_formula_str = formula(stmt_to_formula(g.conclusion))
+        elif g and g.rule:
+            goal_formula_str = formula(rule_to_formula(g, fol_mode=fol_mode))
+
+    # Export GIVEN facts as axioms of their conclusions (not rules)
     for n in u.graph.nodes:
-        if n.rule:
+        if n.rule and (n.rule.name or "").lower() == "given" and n.conclusion:
+            phi = stmt_to_formula(n.conclusion)
+            out.append((f"prem_{n.id}", fof(f"prem_{n.id}", "axiom", phi)))
+
+    # Export rules (including implicit rules IR_*) EXCEPT 'Given'
+    for n in u.graph.nodes:
+        if n.rule and (n.rule.name or "").lower() != "given":
             # Ensure implicit rules are properly exported for abduction
             rule_formula = rule_to_formula(n, fol_mode=fol_mode)
             out.append((f"rule_{n.id}", fof(f"rule_{n.id}", "axiom", rule_formula)))
@@ -303,16 +324,18 @@ def argir_to_fof(u: ARGIR, *, fol_mode: str = "classical", goal_id: Optional[str
                 if isinstance(p, Statement):
                     out.append((f"prem_{n.id}_{i}", fof(f"prem_{n.id}_{i}", "axiom", stmt_to_formula(p))))
 
-    # Export fact nodes (conclusions without premises)
+    # Export fact nodes: ONLY those with no rule, no inline premises,
+    # AND no incoming support edges, AND not equal to the goal
     for n in u.graph.nodes:
-        if not n.rule and not n.premises and n.conclusion:
+        if not n.rule and not n.premises and n.conclusion and in_support.get(n.id, 0) == 0:
             fact_formula = stmt_to_formula(n.conclusion)
             # Quantify over any free variables in facts
             fact_vars = _vars_in_stmt(n.conclusion)
             if fact_vars:
-                # Could either reject or quantify. We'll quantify for lenient mode.
                 fact_formula = _forall_wrap(fact_vars, fact_formula)
-            out.append((f"fact_{n.id}", fof(f"fact_{n.id}", "axiom", fact_formula)))
+            fact_str = formula(fact_formula)
+            if goal_formula_str is None or fact_str != goal_formula_str:
+                out.append((f"fact_{n.id}", fof(f"fact_{n.id}", "axiom", fact_formula)))
 
     # NEW: Export orphan premises as facts (resolve NodeRef -> Statement)
     # These are statement premises that aren't concluded anywhere
@@ -336,13 +359,14 @@ def argir_to_fof(u: ARGIR, *, fol_mode: str = "classical", goal_id: Optional[str
                 orphan_vars = _vars_in_stmt(s)
                 if orphan_vars:
                     stmt_formula = _forall_wrap(orphan_vars, stmt_formula)
-                out.append((f"orphan_fact_{orphan_counter}",
-                          fof(f"orphan_fact_{orphan_counter}", "axiom", stmt_formula)))
+                stmt_str = formula(stmt_formula)
+                if goal_formula_str is None or stmt_str != goal_formula_str:
+                    out.append((f"orphan_fact_{orphan_counter}",
+                              fof(f"orphan_fact_{orphan_counter}", "axiom", stmt_formula)))
     # Inference-node linkage axioms removed to prevent vacuous proofs
     # These were axioms of the form: premises => conclusion for any node with both
     # They allowed proofs to bypass the actual logical rules
     # ---------- Goal ----------
-    chosen = choose_goal_node(u, goal_id=goal_id)
     if chosen:
         g = id2node.get(chosen)
         if g and g.conclusion:

@@ -68,6 +68,19 @@ SELF-CHECK before emitting JSON (redo/fix if any fail):
 - Every node with premises AND conclusion has a rule or references a rule node (3.1).
 - There is at least one rule that licenses the main conclusion (3.3).
 
+PATTERNS YOU MUST CAPTURE AS EXPLICIT RULES (when present in the text):
+- Modus Tollens / Reductio:
+  "If no A then no B. But B. Therefore A."
+  Emit a strict rule node with antecedent: ¬A, consequent: ¬B; a premise node for B; and a derived node A.
+- Definitional rename ("this being we call God", "call this X Y"):
+  Emit a strict rule node bridging the predicates, e.g., first_mover_exist ⇒ first_mover(god).
+- 2×2 dominance (Pascal-style):
+  When the text weighs two actions across two states (P, ¬P), emit case facts/rules:
+    not_worse(A,B,P), not_worse(A,B,¬P), and better(A,B,P) or better(A,B,¬P),
+  plus an aggregator rule (strict or defeasible):
+    ∀s. not_worse(A,B,s) ∧ ∃s'. better(A,B,s') → should(A).
+  Then the GOAL conclusion is should(A).
+
 Output: ONLY the final JSON object. No explanations."""
 
 def build_prompt(text: str) -> str:
