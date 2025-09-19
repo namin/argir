@@ -320,7 +320,36 @@ def get_plain_content(data: Dict[str, Any], format_type: str) -> tuple[str, str]
     
     elif format_type == "json":
         # Return the full JSON data, pretty-printed
-        return json.dumps(data, indent=2), "application/json"
+        # Handle non-serializable objects
+        def make_serializable(obj):
+            """Convert non-serializable objects to serializable format"""
+            if hasattr(obj, 'model_dump'):
+                # Pydantic models
+                return obj.model_dump()
+            elif hasattr(obj, '__dict__'):
+                # Other objects with __dict__
+                return {k: make_serializable(v) for k, v in obj.__dict__.items()}
+            elif isinstance(obj, dict):
+                return {k: make_serializable(v) for k, v in obj.items()}
+            elif isinstance(obj, (list, tuple)):
+                return [make_serializable(item) for item in obj]
+            elif isinstance(obj, (str, int, float, bool)) or obj is None:
+                return obj
+            else:
+                # Fallback: convert to string
+                return str(obj)
+        
+        try:
+            serializable_data = make_serializable(data)
+            return json.dumps(serializable_data, indent=2), "application/json"
+        except Exception as e:
+            # If all else fails, return a simple error structure
+            error_data = {
+                "error": "JSON serialization failed",
+                "message": str(e),
+                "data_type": str(type(data))
+            }
+            return json.dumps(error_data, indent=2), "application/json"
     
     elif format_type == "fol" or format_type == "fof":
         # Return FOL axioms if available
