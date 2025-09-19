@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import './App.css';
 import { TabContainer } from './components/TabContainer';
 import { ResultDisplay } from './components/ResultDisplay';
@@ -68,6 +68,7 @@ function App() {
   const [result, setResult] = useState<ArgirResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [shouldAutoAnalyze, setShouldAutoAnalyze] = useState(false);
 
   // Load saved values from localStorage or URL parameter
   useEffect(() => {
@@ -88,6 +89,11 @@ function App() {
           setKSamples(data.k_samples || 1);
           setEnableDiagnosis(data.enable_diagnosis ?? true);
           setEnableRepair(data.enable_repair ?? true);
+          
+          // Trigger auto-analysis if text is present
+          if (data.text?.trim()) {
+            setShouldAutoAnalyze(true);
+          }
         })
         .catch(err => {
           console.error('Failed to load saved query:', err);
@@ -111,7 +117,7 @@ function App() {
     localStorage.setItem('argir:apikey', apiKey);
   }, [apiKey]);
 
-  const analyze = async () => {
+  const analyze = useCallback(async () => {
     setLoading(true);
     setError(null);
     setResult(null);  // Clear previous results
@@ -170,7 +176,15 @@ function App() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [text, folMode, goalId, goalHint, useSoft, kSamples, apiKey, enableDiagnosis, enableRepair]);
+
+  // Auto-analyze when shouldAutoAnalyze is set and all state is ready
+  useEffect(() => {
+    if (shouldAutoAnalyze && text.trim()) {
+      setShouldAutoAnalyze(false);
+      analyze();
+    }
+  }, [shouldAutoAnalyze, text, analyze]);
 
   // Extract node IDs from result for goal dropdown
   const nodeIds: string[] = result?.result?.argir?.nodes?.map((n: any) => n.id) || [];
