@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Optional, List, Dict, Any
 from fastapi import FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import PlainTextResponse, HTMLResponse
 from pydantic import BaseModel
 
 import sys
@@ -242,6 +243,121 @@ def get_saved_query(query_hash: str) -> Dict[str, Any]:
 
     with open(file_path) as f:
         return json.load(f)
+
+def get_plain_content(data: Dict[str, Any], format_type: str) -> tuple[str, str]:
+    """Extract plain content from saved query data based on format type.
+    
+    Returns (content, content_type) tuple.
+    """
+    if format_type == "md" or format_type == "markdown":
+        # Return the markdown report if available
+        if "result" in data and "report_md" in data["result"]:
+            return data["result"]["report_md"], "text/markdown"
+        else:
+            return "No markdown report available", "text/plain"
+    
+    elif format_type == "txt" or format_type == "text":
+        # Return the source text
+        if "query" in data and "text" in data["query"]:
+            return data["query"]["text"], "text/plain"
+        elif "result" in data and "source_text" in data["result"]:
+            return data["result"]["source_text"], "text/plain"
+        else:
+            return "No text content available", "text/plain"
+    
+    elif format_type == "html":
+        # Convert markdown to basic HTML if available, otherwise show structured data
+        if "result" in data and "report_md" in data["result"]:
+            # Simple markdown-to-HTML conversion for basic formatting
+            html_content = data["result"]["report_md"]
+            html_content = html_content.replace("\n# ", "\n<h1>").replace("\n## ", "\n<h2>").replace("\n### ", "\n<h3>")
+            html_content = html_content.replace("\n<h1>", "</h1>\n<h1>").replace("\n<h2>", "</h2>\n<h2>").replace("\n<h3>", "</h3>\n<h3>")
+            html_content = html_content.replace("```json\n", "<pre><code>").replace("```\n", "</code></pre>\n")
+            html_content = html_content.replace("```", "<code>").replace("\n\n", "</p>\n<p>")
+            html_content = f"<html><head><title>ARGIR Report</title></head><body><h1>{html_content}</h1></body></html>"
+            return html_content, "text/html"
+        else:
+            # Fallback to basic HTML structure
+            query_text = data.get("query", {}).get("text", "No query text")
+            html_content = f"""
+            <html>
+            <head><title>ARGIR Query</title></head>
+            <body>
+                <h1>ARGIR Analysis</h1>
+                <h2>Query Text</h2>
+                <p>{query_text}</p>
+                <h2>Timestamp</h2>
+                <p>{data.get("query", {}).get("timestamp", "Unknown")}</p>
+            </body>
+            </html>
+            """
+            return html_content, "text/html"
+    
+    elif format_type == "json":
+        # Return the full JSON data, pretty-printed
+        return json.dumps(data, indent=2), "application/json"
+    
+    elif format_type == "fol" or format_type == "fof":
+        # Return FOL axioms if available
+        if "result" in data and "fof" in data["result"]:
+            fol_axioms = data["result"]["fof"]
+            if isinstance(fol_axioms, list):
+                return "\n".join(fol_axioms), "text/plain"
+            else:
+                return str(fol_axioms), "text/plain"
+        else:
+            return "No FOL axioms available", "text/plain"
+    
+    elif format_type == "apx":
+        # Return APX format if available
+        if "result" in data and "semantics" in data["result"]:
+            semantics = data["result"]["semantics"]
+            if "grounded" in semantics and "apx" in semantics["grounded"]:
+                return semantics["grounded"]["apx"], "text/plain"
+            elif "preferred" in semantics and "apx" in semantics["preferred"]:
+                return semantics["preferred"]["apx"], "text/plain"
+        return "No APX format available", "text/plain"
+    
+    else:
+        # Default to JSON for unknown formats
+        return json.dumps(data, indent=2), "application/json"
+
+@app.get("/plain/{query_hash_or_file}")
+def get_plain_query_smart(query_hash_or_file: str):
+    """Retrieve a saved query in plain format, supporting both hash.ext and hash formats"""
+    if '.' in query_hash_or_file:
+        # Handle file extension format (e.g., hash.md, hash.txt)
+        query_hash, extension = query_hash_or_file.rsplit('.', 1)
+        return get_plain_query_format(query_hash, extension)
+    else:
+        # No extension, default to markdown
+        return get_plain_query_format(query_hash_or_file, "md")
+
+@app.get("/plain/{query_hash}/{format_type}")
+def get_plain_query_format(query_hash: str, format_type: str):
+    """Retrieve a saved query in specified plain format
+    
+    Supported formats:
+    - md/markdown: Markdown report
+    - txt/text: Source text only  
+    - html: HTML formatted report
+    - json: Full JSON data
+    - fol/fof: FOL axioms
+    - apx: APX format for argument frameworks
+    """
+    file_path = Path("saved") / f"{query_hash}.json"
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="Saved query not found")
+
+    with open(file_path) as f:
+        data = json.load(f)
+    
+    content, content_type = get_plain_content(data, format_type.lower())
+    
+    if content_type == "text/html":
+        return HTMLResponse(content=content)
+    else:
+        return PlainTextResponse(content=content, media_type=content_type)
 
 if __name__ == "__main__":
     import uvicorn
