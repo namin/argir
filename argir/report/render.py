@@ -22,7 +22,100 @@ def to_markdown(u: ARGIR, findings: List[dict], semantics: dict|None, fol_summar
     src = u.source_text or ""
     lines: List[str] = []
     lines.append("# ARGIR Report\n")
-    lines.append("## Source Text\n")
+
+    # --- Goal & Proof Status ---
+    goal_id = (u.metadata or {}).get("goal_id") or (u.metadata or {}).get("goal_candidate_id") or ""
+    goal_line = ""
+    if fof_lines:
+        for ln in fof_lines:
+            s = (ln or "").strip()
+            if s.startswith("fof(goal"):
+                goal_line = s; break
+    # components count
+    def _comps():
+        ids = [n.id for n in u.graph.nodes]
+        nbr = {i:set() for i in ids}
+        for e in u.graph.edges:
+            if e.source in nbr and e.target in nbr:
+                nbr[e.source].add(e.target); nbr[e.target].add(e.source)
+        seen=set(); k=0
+        for i in ids:
+            if i in seen: continue
+            k+=1; st=[i]
+            while st:
+                x=st.pop()
+                if x in seen: continue
+                seen.add(x); st.extend(nbr[x])
+        return k
+    lines.append("## Goal & Proof Status\n")
+    if goal_id: lines.append(f"**Goal node:** `{goal_id}`")
+    if goal_line: lines.append(f"**FOL target:** `{goal_line}`")
+    if fol_summary:
+        status = "Unknown"
+        if fol_summary.get("theorem"): status = "✓ Conjecture proved"
+        elif fol_summary.get("unsat"): status = "Unsatisfiable"
+        elif fol_summary.get("sat"): status = "Satisfiable"
+        elif fol_summary.get("note"): status = fol_summary["note"]
+        lines.append(f"**E‑Prover:** {status}")
+    try:
+        ncomp = _comps()
+        if ncomp > 1:
+            lines.append(f"**Note:** Graph has {ncomp} connected components; focusing on the GOAL component below.")
+    except Exception: pass
+
+    # --- Reconstructed Proof Sketch (support-only, goal component) ---
+    # Build incoming/outgoing support maps
+    id2 = {n.id: n for n in u.graph.nodes}
+    inc = {n.id: [] for n in u.graph.nodes}
+    out = {n.id: [] for n in u.graph.nodes}
+    for e in u.graph.edges:
+        if e.kind == "support":
+            inc[e.target].append(e.source)
+            out[e.source].append(e.target)
+    # find goal component (undirected)
+    comp = set()
+    if goal_id and goal_id in id2:
+        stack=[goal_id]
+        while stack:
+            x=stack.pop()
+            if x in comp: continue
+            comp.add(x)
+            for y in inc.get(x, []): stack.append(y)
+            for y in out.get(x, []): stack.append(y)
+    else:
+        comp = set(id2.keys())
+    # topo over support inside component
+    indeg = {i: sum(1 for _ in inc[i] if _ in comp) for i in comp}
+    Q = [i for i in comp if indeg[i]==0]
+    seen=set(); steps=[]
+    def fmt_stmt(s):  # very light formatter
+        if not s or not s.atoms: return s.text or "—"
+        return " ∧ ".join(("¬" if a.negated else "") + a.pred + ("(" + ",".join(t.name for t in a.args) + ")" if a.args else "")
+                           for a in s.atoms)
+    while Q:
+        cur = Q.pop(0)
+        if cur in seen: continue
+        seen.add(cur)
+        n = id2[cur]
+        if not n.premises and not n.rule and n.conclusion:
+            steps.append(("Premise", cur, fmt_stmt(n.conclusion)))
+        elif n.rule and not n.conclusion:
+            name = (n.rule.name or n.rule.scheme or "rule")
+            steps.append(("Rule", cur, f"{name}: ..."))
+        elif n.conclusion:
+            srcs = [s for s in inc.get(cur, []) if s in comp]
+            name = (n.rule.name or n.rule.scheme or "rule") if n.rule else "inference"
+            steps.append(("Derived", cur, f"From {', '.join(srcs)} by {name}, infer {fmt_stmt(n.conclusion)}"))
+        for y in out.get(cur, []):
+            if y in indeg:
+                indeg[y]-=1
+                if indeg[y]==0: Q.append(y)
+    if steps:
+        lines.append("\n## Proof sketch (goal component)\n")
+        for i,(k,nid,txt) in enumerate(steps, 1):
+            lines.append(f"{i}. *{k}* — {txt}")
+
+    lines.append("\n## Source Text\n")
     lines.append("```"); lines.append(src); lines.append("```\n")
     try:
         lex = None

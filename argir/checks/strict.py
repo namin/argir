@@ -44,4 +44,68 @@ def strict_validate(u: ARGIR) -> List[ValidationIssue]:
                     "message": "Derived conclusion lacks a rule or a Ref to a rule node."
                 })
 
+    # Structural warnings (components, sinks, reachability)
+    issues += structural_warnings(u)
+    return issues
+
+def _connected_components(u: ARGIR) -> list[set[str]]:
+    nbr = {n.id: set() for n in u.graph.nodes}
+    for e in u.graph.edges:
+        a, b = e.source, e.target
+        if a in nbr and b in nbr:
+            nbr[a].add(b); nbr[b].add(a)
+    comps, seen = [], set()
+    for nid in nbr:
+        if nid in seen: continue
+        stack, comp = [nid], set()
+        while stack:
+            x = stack.pop()
+            if x in comp: continue
+            comp.add(x); seen.add(x)
+            stack.extend(nbr[x])
+        comps.append(comp)
+    return comps
+
+def structural_warnings(u: ARGIR) -> List[ValidationIssue]:
+    issues: List[ValidationIssue] = []
+    comps = _connected_components(u)
+    if len(comps) > 1:
+        issues.append({"kind":"disconnected_components","node":"—",
+                       "message": f"Graph has {len(comps)} connected components"})
+    # goal component
+    goal_id = (u.metadata or {}).get("goal_id") or (u.metadata or {}).get("goal_candidate_id")
+    gc = None
+    for c in comps:
+        if goal_id in c:
+            gc = c; break
+    if gc is None and comps:
+        gc = comps[0]
+    # support out-degree
+    outdeg = {n.id: 0 for n in u.graph.nodes}
+    indeg = {n.id: 0 for n in u.graph.nodes}
+    for e in u.graph.edges:
+        if e.kind == "support":
+            outdeg[e.source] = outdeg.get(e.source, 0) + 1
+            indeg[e.target] = indeg.get(e.target, 0) + 1
+    if gc:
+        sinks = [nid for nid in gc if outdeg.get(nid, 0) == 0]
+        if len(sinks) > 1:
+            issues.append({"kind":"multiple_conclusions","node":"—",
+                           "message": f"Multiple sink conclusions ({len(sinks)}) in the goal component"})
+        # reachability
+        roots = [nid for nid in gc if indeg.get(nid, 0) == 0]
+        seen = set(roots)
+        stack = roots[:]
+        outs = {}
+        for e in u.graph.edges:
+            if e.kind == "support":
+                outs.setdefault(e.source, set()).add(e.target)
+        while stack:
+            x = stack.pop()
+            for y in outs.get(x, ()):
+                if y not in seen:
+                    seen.add(y); stack.append(y)
+        if goal_id and goal_id not in seen:
+            issues.append({"kind":"goal_unreachable","node":str(goal_id),
+                           "message":"Goal is not reachable from any support root"})
     return issues
