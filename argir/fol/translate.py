@@ -226,10 +226,11 @@ def choose_goal_node(u: ARGIR, goal_id: Optional[str] = None) -> Optional[str]:
     """Choose goal node with improved heuristics:
     1. Use explicit goal_id if provided
     2. Check metadata.goal_id from LLM
-    3. Prefer conclusions with variables (quantified forms)
-    4. De-prioritize 0-arity "macro" predicates
-    5. Find nodes that are not referenced as premises (inference sinks)
-    6. Prefer nodes with more complex derivations (have premises)
+    3. Avoid nodes marked as "Given" facts
+    4. Prefer sink nodes (no outgoing support edges)
+    5. Prefer conclusions with variables (quantified forms)
+    6. De-prioritize 0-arity "macro" predicates
+    7. Prefer nodes with more complex derivations (have premises)
     """
     if goal_id:
         return goal_id
@@ -247,12 +248,50 @@ def choose_goal_node(u: ARGIR, goal_id: Optional[str] = None) -> Optional[str]:
             if isinstance(p, NodeRef):
                 ref_targets.add(p.ref)
 
-    # Candidates: inference sinks (not referenced), with conclusions
-    candidates = [n for n in u.graph.nodes
-                 if n.conclusion and n.id not in ref_targets]
+    # Compute support out-degree (to find sinks)
+    support_outdeg = {}
+    for n in u.graph.nodes:
+        support_outdeg[n.id] = 0
+    for e in u.graph.edges:
+        if e.kind == "support":
+            support_outdeg[e.source] = support_outdeg.get(e.source, 0) + 1
+
+    # Candidates: nodes with conclusions that are:
+    # - Not marked as "Given" facts
+    # - Preferably sinks (no outgoing support)
+    # - Not referenced as premises by other nodes
+    candidates = []
+    for n in u.graph.nodes:
+        if not n.conclusion:
+            continue
+        # Skip "Given" facts
+        if n.rule and (n.rule.name or "").lower() == "given":
+            continue
+        candidates.append(n)
 
     if not candidates:
-        return None
+        # If all nodes are Given, fall back to any node with conclusion
+        candidates = [n for n in u.graph.nodes if n.conclusion]
+        if not candidates:
+            return None
+
+    # Strongly prefer sink nodes (no outgoing support edges)
+    sinks = [n for n in candidates if support_outdeg.get(n.id, 0) == 0]
+    if sinks:
+        candidates = sinks
+
+    # Further filter: prefer nodes that have incoming support (derived conclusions)
+    # or have premises (even if self-contained inference)
+    support_indeg = {}
+    for n in u.graph.nodes:
+        support_indeg[n.id] = 0
+    for e in u.graph.edges:
+        if e.kind == "support":
+            support_indeg[e.target] = support_indeg.get(e.target, 0) + 1
+
+    derived = [n for n in candidates if support_indeg.get(n.id, 0) > 0 or n.premises]
+    if derived:
+        candidates = derived
 
     # 1) Prefer quantified/variable-bearing conclusions
     with_vars = [n for n in candidates if _stmt_has_vars(n.conclusion)]

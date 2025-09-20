@@ -345,6 +345,9 @@ def run_pipeline_soft(text: str, fol_mode: str = "classical", goal_id: Optional[
     argir_obj = ARGIR.model_validate(best_argir)
 
     # Run the rest of the pipeline as normal
+    # Always run validation checks (including structural warnings)
+    validation_issues = strict_validate(argir_obj)
+
     fof_pairs = argir_to_fof(argir_obj, fol_mode=fol_mode, goal_id=goal_id)
     fof_lines = [fof for _, fof in fof_pairs]
 
@@ -356,8 +359,10 @@ def run_pipeline_soft(text: str, fol_mode: str = "classical", goal_id: Optional[
     fol_summary = call_eprover(fof_lines)
     findings = run_all(argir_obj)
 
-    # Prepare warnings
+    # Prepare warnings - include both soft validation and structural issues
     all_warnings = {"soft_validation": [i.__dict__ for i in best_report.issues]}
+    if validation_issues:
+        all_warnings["validation_issues"] = validation_issues
 
     report_md = to_markdown(argir_obj, findings, semantics, fol_summary, fof_lines, all_warnings)
 
@@ -369,5 +374,6 @@ def run_pipeline_soft(text: str, fol_mode: str = "classical", goal_id: Optional[
         "fof": fof_lines,
         "fol_summary": fol_summary,
         "report_md": report_md,
-        "soft_validation": best_report
+        "soft_validation": best_report,
+        "validation_issues": validation_issues  # Include structural validation issues
     }
