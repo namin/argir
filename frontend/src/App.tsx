@@ -477,13 +477,13 @@ function App() {
                   {
                     id: 'findings',
                     label: 'Findings',
-                    content: <ResultDisplay type="findings" data={result.result.findings} />,
+                    content: <ResultDisplay type="findings" data={result.result.findings} argirData={result.result.argir} />,
                     disabled: !result.result.findings || result.result.findings.length === 0
                   },
                   {
                     id: 'diagnosis',
                     label: `Diagnosis${result.issues && result.issues.length > 0 ? ` (${result.issues.length})` : ''}`,
-                    content: <DiagnosisDisplay issues={result.issues || []} repairs={result.repairs || []} />,
+                    content: <DiagnosisDisplay issues={result.issues || []} repairs={result.repairs || []} argirData={result.result.argir} />,
                     disabled: !enableDiagnosis
                   }
                 ]}

@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import './DiagnosisDisplay.css';
+import { NodeDetails, findNodeById, getNodeSummary } from './NodeDetails';
+import './NodeDetails.css';
 
 interface Issue {
   id: string;
@@ -22,9 +24,67 @@ interface Repair {
 interface DiagnosisDisplayProps {
   issues: Issue[];
   repairs: Repair[];
+  argirData?: any; // Full ARGIR data for node lookups
 }
 
-export const DiagnosisDisplay: React.FC<DiagnosisDisplayProps> = ({ issues, repairs }) => {
+const ExpandableNodeList: React.FC<{ nodeIds: string[], argirData: any }> = ({ nodeIds, argirData }) => {
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
+
+  const toggleNode = (nodeId: string) => {
+    const newExpanded = new Set(expandedNodes);
+    if (newExpanded.has(nodeId)) {
+      newExpanded.delete(nodeId);
+    } else {
+      newExpanded.add(nodeId);
+    }
+    setExpandedNodes(newExpanded);
+  };
+
+  return (
+    <div className="expandable-node-list">
+      <strong>Affected nodes:</strong>
+      <div className="node-list">
+        {nodeIds.map((nodeId) => {
+          const node = findNodeById(nodeId, argirData);
+          const isExpanded = expandedNodes.has(nodeId);
+          
+          return (
+            <div key={nodeId} className="diagnosis-node">
+              <div 
+                className="diagnosis-node-header"
+                onClick={() => toggleNode(nodeId)}
+                style={{ cursor: 'pointer' }}
+              >
+                <span className="diagnosis-node-id">{nodeId}</span>
+                {node && (
+                  <span className="diagnosis-node-summary">
+                    {getNodeSummary(node)}
+                  </span>
+                )}
+                {!node && (
+                  <span className="diagnosis-node-error">Node data not found</span>
+                )}
+                <span className="expand-indicator">
+                  {isExpanded ? '▼ Hide details' : '▶ Show details'}
+                </span>
+              </div>
+              {isExpanded && node && (
+                <NodeDetails 
+                  node={node} 
+                  mode="inline" 
+                  showHeader={false}
+                  className="diagnosis-node-details"
+                />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+export const DiagnosisDisplay: React.FC<DiagnosisDisplayProps> = ({ issues, repairs, argirData }) => {
   const getIssueTypeLabel = (type: string) => {
     const labels: Record<string, string> = {
       'unsupported_inference': 'Unsupported Inference',
@@ -83,9 +143,7 @@ export const DiagnosisDisplay: React.FC<DiagnosisDisplayProps> = ({ issues, repa
 
             <div className="issue-body">
               {issue.target_node_ids.length > 0 && (
-                <div className="affected-nodes">
-                  <strong>Affected nodes:</strong> {issue.target_node_ids.join(', ')}
-                </div>
+                <ExpandableNodeList nodeIds={issue.target_node_ids} argirData={argirData} />
               )}
 
               {issue.notes && (

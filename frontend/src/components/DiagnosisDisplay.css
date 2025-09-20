@@ -211,3 +211,82 @@
   color: #991b1b;
   font-size: 0.875rem;
 }
+
+/* Expandable Node List Styles */
+.expandable-node-list {
+  margin-bottom: 1rem;
+}
+
+.node-list {
+  margin-top: 0.75rem;
+}
+
+.diagnosis-node {
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  margin-bottom: 0.5rem;
+  overflow: hidden;
+}
+
+.diagnosis-node-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: #f8fafc;
+  transition: background-color 0.2s;
+}
+
+.diagnosis-node-header:hover {
+  background: #f1f5f9;
+}
+
+.diagnosis-node-id {
+  font-weight: 600;
+  color: #3b82f6;
+  font-family: 'Courier New', monospace;
+  min-width: 3rem;
+}
+
+.diagnosis-node-summary {
+  flex: 1;
+  color: #4b5563;
+  font-size: 0.875rem;
+}
+
+.diagnosis-node-error {
+  flex: 1;
+  color: #ef4444;
+  font-size: 0.875rem;
+  font-style: italic;
+}
+
+.diagnosis-node-details {
+  border-top: 1px solid #e2e8f0;
+  background: white;
+}
+
+.expand-indicator {
+  font-size: 0.875rem;
+  color: #6b7280;
+  user-select: none;
+}
+
+/* Mobile responsiveness for diagnosis nodes */
+@media (max-width: 768px) {
+  .diagnosis-node-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  
+  .diagnosis-node-summary,
+  .diagnosis-node-error {
+    font-size: 0.8125rem;
+  }
+  
+  .expand-indicator {
+    align-self: flex-end;
+    font-size: 0.8125rem;
+  }
+}
