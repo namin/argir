@@ -222,7 +222,7 @@ def list_saved_queries() -> List[Dict[str, Any]]:
                 data = json.load(f)
                 queries.append({
                     "hash": file_path.stem,
-                    "text": data.get("text", "")[:100] + ("..." if len(data.get("text", "")) > 100 else ""),
+                    "text": data.get("text", ""),
                     "timestamp": data.get("timestamp"),
                     "fol_mode": data.get("fol_mode"),
                     "goal_id": data.get("goal_id")
