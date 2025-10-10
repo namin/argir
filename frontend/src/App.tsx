@@ -418,22 +418,6 @@ function App() {
                 </>
               )}
             </div>
-
-            <div className="card">
-              <h3>Example Inputs</h3>
-              <div className="example">
-                <strong>Simple Modus Ponens:</strong>
-                <p>"If it rains, the streets get wet. It is raining. So, the streets will get wet."</p>
-              </div>
-              <div className="example">
-                <strong>With Exception:</strong>
-                <p>"If it rains, the streets get wet. It is raining. So, the streets will get wet. However, sometimes drains prevent wet streets."</p>
-              </div>
-              <div className="example">
-                <strong>Multiple Arguments:</strong>
-                <p>"All birds can fly. Penguins are birds. But penguins cannot fly because they are flightless birds. Therefore, not all birds can fly."</p>
-              </div>
-            </div>
           </div>
 
           {result && (
