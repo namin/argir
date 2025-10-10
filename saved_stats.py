@@ -267,9 +267,13 @@ def aggregate_stats(all_stats: List[Dict[str, Any]]) -> Dict[str, Any]:
                 all_issue_types[issue_type] += count
 
     # Repair statistics
-    total_issues = sum(s["diagnosis"]["num_issues"] for s in all_stats if "diagnosis" in s)
-    total_repairs = sum(s["diagnosis"]["num_repairs"] for s in all_stats if "diagnosis" in s)
-    total_verified = sum(s["diagnosis"]["verified_successful"] for s in all_stats if "diagnosis" in s)
+    issues_per_query = [s["diagnosis"]["num_issues"] for s in all_stats if "diagnosis" in s]
+    repairs_per_query = [s["diagnosis"]["num_repairs"] for s in all_stats if "diagnosis" in s]
+    verified_per_query = [s["diagnosis"]["verified_successful"] for s in all_stats if "diagnosis" in s]
+
+    total_issues = sum(issues_per_query)
+    total_repairs = sum(repairs_per_query)
+    total_verified = sum(verified_per_query)
 
     # FOL status distribution
     fol_statuses = Counter(s["fol_status"] for s in all_stats)
@@ -322,8 +326,23 @@ def aggregate_stats(all_stats: List[Dict[str, Any]]) -> Dict[str, Any]:
         "diagnosis": {
             "total_issues": total_issues,
             "issue_types": dict(all_issue_types),
+            "issues_per_query": {
+                "avg": safe_avg(issues_per_query),
+                "min": safe_min(issues_per_query),
+                "max": safe_max(issues_per_query)
+            },
             "total_repairs": total_repairs,
+            "repairs_per_query": {
+                "avg": safe_avg(repairs_per_query),
+                "min": safe_min(repairs_per_query),
+                "max": safe_max(repairs_per_query)
+            },
             "verified_successful": total_verified,
+            "verified_per_query": {
+                "avg": safe_avg(verified_per_query),
+                "min": safe_min(verified_per_query),
+                "max": safe_max(verified_per_query)
+            },
             "success_rate": total_verified / total_repairs if total_repairs > 0 else 0
         },
         "fol_status": dict(fol_statuses),
@@ -364,6 +383,8 @@ def format_summary_text(agg: Dict[str, Any]) -> str:
     lines.append("Issues Found:")
     d = agg['diagnosis']
     lines.append(f"  Total issues: {d['total_issues']}")
+    ip = d['issues_per_query']
+    lines.append(f"  Per query: avg={ip['avg']:.1f}, min={ip['min']}, max={ip['max']}")
     if d['issue_types']:
         lines.append("  By type:")
         for issue_type, count in sorted(d['issue_types'].items(), key=lambda x: -x[1]):
@@ -372,7 +393,11 @@ def format_summary_text(agg: Dict[str, Any]) -> str:
     lines.append("")
     lines.append("Repairs Generated:")
     lines.append(f"  Total repairs: {d['total_repairs']}")
+    rp = d['repairs_per_query']
+    lines.append(f"  Per query: avg={rp['avg']:.1f}, min={rp['min']}, max={rp['max']}")
     lines.append(f"  Verified successful: {d['verified_successful']} ({d['success_rate']*100:.1f}%)")
+    vp = d['verified_per_query']
+    lines.append(f"  Verified per query: avg={vp['avg']:.1f}, min={vp['min']}, max={vp['max']}")
 
     lines.append("")
     lines.append("FOL Prover Results:")
