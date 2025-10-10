@@ -247,6 +247,16 @@ def aggregate_stats(all_stats: List[Dict[str, Any]]) -> Dict[str, Any]:
     if not all_stats:
         return {}
 
+    # Helper functions for safe aggregation
+    def safe_avg(values):
+        return sum(values) / len(values) if values else 0
+
+    def safe_min(values):
+        return min(values) if values else 0
+
+    def safe_max(values):
+        return max(values) if values else 0
+
     # Settings distribution
     fol_modes = Counter(s["settings"]["fol_mode"] for s in all_stats)
     use_soft = Counter(s["settings"]["use_soft"] for s in all_stats)
@@ -258,6 +268,10 @@ def aggregate_stats(all_stats: List[Dict[str, Any]]) -> Dict[str, Any]:
     edges = [g["num_edges"] for g in graph_stats]
     components = [g["components"] for g in graph_stats]
     densities = [g["density"] for g in graph_stats]
+    support_edges = [g["support_edges"] for g in graph_stats]
+    attack_edges = [g["attack_edges"] for g in graph_stats]
+    total_support = sum(support_edges)
+    total_attack = sum(attack_edges)
 
     # Issue types (aggregate across all queries)
     all_issue_types = Counter()
@@ -275,11 +289,61 @@ def aggregate_stats(all_stats: List[Dict[str, Any]]) -> Dict[str, Any]:
     total_repairs = sum(repairs_per_query)
     total_verified = sum(verified_per_query)
 
+    # Count queries with no issues
+    queries_with_no_issues = sum(1 for count in issues_per_query if count == 0)
+
+    # Aggregate repair kinds
+    all_repair_kinds = Counter()
+    for s in all_stats:
+        if "diagnosis" in s:
+            for kind, count in s["diagnosis"].get("repair_kinds", {}).items():
+                all_repair_kinds[kind] += count
+
     # FOL status distribution
     fol_statuses = Counter(s["fol_status"] for s in all_stats)
 
     # Text length statistics
     text_lengths = [s["text_length"] for s in all_stats]
+
+    # Correlations
+    # Prepare data for correlation analysis
+    queries_with_all_data = []
+    for s in all_stats:
+        if "graph" in s and "diagnosis" in s:
+            queries_with_all_data.append({
+                "nodes": s["graph"]["num_nodes"],
+                "edges": s["graph"]["num_edges"],
+                "components": s["graph"]["components"],
+                "issues": s["diagnosis"]["num_issues"],
+                "text_length": s["text_length"],
+                "fol_proved": 1 if s["fol_status"] == "theorem" else 0
+            })
+
+    # Compute simple correlations (queries with issues vs without)
+    if queries_with_all_data:
+        queries_with_issues = [q for q in queries_with_all_data if q["issues"] > 0]
+        queries_without_issues = [q for q in queries_with_all_data if q["issues"] == 0]
+
+        avg_nodes_with_issues = safe_avg([q["nodes"] for q in queries_with_issues]) if queries_with_issues else 0
+        avg_nodes_without_issues = safe_avg([q["nodes"] for q in queries_without_issues]) if queries_without_issues else 0
+
+        avg_edges_with_issues = safe_avg([q["edges"] for q in queries_with_issues]) if queries_with_issues else 0
+        avg_edges_without_issues = safe_avg([q["edges"] for q in queries_without_issues]) if queries_without_issues else 0
+
+        avg_components_with_issues = safe_avg([q["components"] for q in queries_with_issues]) if queries_with_issues else 0
+        avg_components_without_issues = safe_avg([q["components"] for q in queries_without_issues]) if queries_without_issues else 0
+
+        # FOL provability by connectedness
+        proved_queries = [q for q in queries_with_all_data if q["fol_proved"] == 1]
+        unproved_queries = [q for q in queries_with_all_data if q["fol_proved"] == 0]
+
+        avg_components_proved = safe_avg([q["components"] for q in proved_queries]) if proved_queries else 0
+        avg_components_unproved = safe_avg([q["components"] for q in unproved_queries]) if unproved_queries else 0
+    else:
+        avg_nodes_with_issues = avg_nodes_without_issues = 0
+        avg_edges_with_issues = avg_edges_without_issues = 0
+        avg_components_with_issues = avg_components_without_issues = 0
+        avg_components_proved = avg_components_unproved = 0
 
     # Timestamps
     timestamps = [s["timestamp"] for s in all_stats if s.get("timestamp")]
@@ -316,6 +380,11 @@ def aggregate_stats(all_stats: List[Dict[str, Any]]) -> Dict[str, Any]:
                 "min": safe_min(edges),
                 "max": safe_max(edges)
             },
+            "edge_types": {
+                "support": total_support,
+                "attack": total_attack,
+                "support_pct": total_support / (total_support + total_attack) * 100 if (total_support + total_attack) > 0 else 0
+            },
             "components": {
                 "avg": safe_avg(components)
             },
@@ -343,7 +412,27 @@ def aggregate_stats(all_stats: List[Dict[str, Any]]) -> Dict[str, Any]:
                 "min": safe_min(verified_per_query),
                 "max": safe_max(verified_per_query)
             },
-            "success_rate": total_verified / total_repairs if total_repairs > 0 else 0
+            "success_rate": total_verified / total_repairs if total_repairs > 0 else 0,
+            "queries_with_no_issues": queries_with_no_issues,
+            "repair_kinds": dict(all_repair_kinds)
+        },
+        "correlations": {
+            "complexity_vs_issues": {
+                "with_issues": {
+                    "avg_nodes": avg_nodes_with_issues,
+                    "avg_edges": avg_edges_with_issues,
+                    "avg_components": avg_components_with_issues
+                },
+                "without_issues": {
+                    "avg_nodes": avg_nodes_without_issues,
+                    "avg_edges": avg_edges_without_issues,
+                    "avg_components": avg_components_without_issues
+                }
+            },
+            "connectedness_vs_provability": {
+                "proved_avg_components": avg_components_proved,
+                "unproved_avg_components": avg_components_unproved
+            }
         },
         "fol_status": dict(fol_statuses),
         "text_length": {
@@ -376,6 +465,8 @@ def format_summary_text(agg: Dict[str, Any]) -> str:
     g = agg['graph']
     lines.append(f"  Nodes: avg={g['nodes']['avg']:.1f}, min={g['nodes']['min']}, max={g['nodes']['max']}")
     lines.append(f"  Edges: avg={g['edges']['avg']:.1f}, min={g['edges']['min']}, max={g['edges']['max']}")
+    et = g['edge_types']
+    lines.append(f"  Edge types: {et['support']} support ({et['support_pct']:.1f}%), {et['attack']} attack")
     lines.append(f"  Components: avg={g['components']['avg']:.2f}")
     lines.append(f"  Density: avg={g['density']['avg']:.3f}")
 
@@ -383,6 +474,7 @@ def format_summary_text(agg: Dict[str, Any]) -> str:
     lines.append("Issues Found:")
     d = agg['diagnosis']
     lines.append(f"  Total issues: {d['total_issues']}")
+    lines.append(f"  Queries with no issues: {d['queries_with_no_issues']} ({d['queries_with_no_issues']/agg['total_queries']*100:.1f}%)")
     ip = d['issues_per_query']
     lines.append(f"  Per query: avg={ip['avg']:.1f}, min={ip['min']}, max={ip['max']}")
     if d['issue_types']:
@@ -395,6 +487,8 @@ def format_summary_text(agg: Dict[str, Any]) -> str:
     lines.append(f"  Total repairs: {d['total_repairs']}")
     rp = d['repairs_per_query']
     lines.append(f"  Per query: avg={rp['avg']:.1f}, min={rp['min']}, max={rp['max']}")
+    if d.get('repair_kinds'):
+        lines.append(f"  By kind: {', '.join(f'{k} ({v})' for k, v in d['repair_kinds'].items())}")
     lines.append(f"  Verified successful: {d['verified_successful']} ({d['success_rate']*100:.1f}%)")
     vp = d['verified_per_query']
     lines.append(f"  Verified per query: avg={vp['avg']:.1f}, min={vp['min']}, max={vp['max']}")
@@ -417,6 +511,19 @@ def format_summary_text(agg: Dict[str, Any]) -> str:
     lines.append("Text Statistics:")
     t = agg['text_length']
     lines.append(f"  Length: avg={t['avg']:.0f} chars, min={t['min']}, max={t['max']}")
+
+    lines.append("")
+    lines.append("Correlations & Insights:")
+    corr = agg['correlations']
+    cvi = corr['complexity_vs_issues']
+    lines.append(f"  Graph complexity vs issues:")
+    lines.append(f"    Queries WITH issues: avg {cvi['with_issues']['avg_nodes']:.1f} nodes, {cvi['with_issues']['avg_edges']:.1f} edges")
+    lines.append(f"    Queries WITHOUT issues: avg {cvi['without_issues']['avg_nodes']:.1f} nodes, {cvi['without_issues']['avg_edges']:.1f} edges")
+
+    cvp = corr['connectedness_vs_provability']
+    lines.append(f"  Graph connectedness vs FOL provability:")
+    lines.append(f"    Proved queries: avg {cvp['proved_avg_components']:.2f} components")
+    lines.append(f"    Unproved queries: avg {cvp['unproved_avg_components']:.2f} components")
 
     lines.append("=" * 60)
 
