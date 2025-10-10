@@ -305,6 +305,6 @@ The Argument Debugger makes the structure visible. The rest is still philosophy.
 
 ---
 
-**Dataset:** 95 arguments collected at [argir.metareflective.app](https://argir.metareflective.app)
-**Code:** Available at [github.com/namin/argir](https://github.com/namin/argir)
-**Technical documentation:** See `/docs` for deep dives on FOL translation, repair strategies, and system architecture
+- **Dataset:** 95 arguments collected at [argir.metareflective.app](https://argir.metareflective.app)
+- **Code:** Available at [github.com/namin/argir](https://github.com/namin/argir)
+- **Technical documentation:** See `/docs` for deep dives on FOL translation, repair strategies, and system architecture
