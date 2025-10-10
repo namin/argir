@@ -171,6 +171,9 @@ def analyze_arguments(req: ArgirRequest, x_api_key: Optional[str] = Header(None)
         saved_hash = save_query(req)
         response["saved_hash"] = saved_hash
 
+        # Also save the full results for caching
+        save_results(saved_hash, response)
+
         return response
 
     except Exception as e:
@@ -207,6 +210,33 @@ def save_query(req: ArgirRequest) -> str:
         json.dump(query_data, f, indent=2)
 
     return query_hash
+
+def save_results(query_hash: str, response: Dict[str, Any]) -> None:
+    """Save full analysis results to the saved-results/ directory for caching"""
+    results_dir = Path("saved-results")
+    results_dir.mkdir(exist_ok=True)
+
+    # Serialize the response (handle Pydantic models)
+    def make_serializable(obj):
+        if hasattr(obj, 'model_dump'):
+            return obj.model_dump()
+        elif isinstance(obj, dict):
+            return {k: make_serializable(v) for k, v in obj.items()}
+        elif isinstance(obj, (list, tuple)):
+            return [make_serializable(item) for item in obj]
+        elif isinstance(obj, (str, int, float, bool)) or obj is None:
+            return obj
+        else:
+            return str(obj)
+
+    try:
+        serializable_response = make_serializable(response)
+        file_path = results_dir / f"{query_hash}.json"
+        with open(file_path, 'w') as f:
+            json.dump(serializable_response, f, indent=2)
+    except Exception as e:
+        # Don't fail the request if results caching fails
+        print(f"Warning: Failed to cache results for {query_hash}: {e}")
 
 @app.get("/api/saved")
 def list_saved_queries() -> List[Dict[str, Any]]:

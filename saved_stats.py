@@ -106,6 +106,53 @@ def extract_diagnosis_stats(issues: List[Dict], repairs: List[Dict]) -> Dict[str
     }
 
 
+def extract_stats_from_result(query_hash: str, result: Dict[str, Any]) -> Dict[str, Any]:
+    """Extract statistics from a full analysis result (either from cache or fresh analysis)."""
+    # Get query parameters (might be in result for old cache format, or need to load separately)
+    query_params = result.get("query_params", {})
+    if not query_params:
+        # Load from saved query file
+        file_path = Path("saved") / f"{query_hash}.json"
+        if file_path.exists():
+            with open(file_path) as f:
+                query_params = json.load(f)
+
+    stats = {
+        "hash": query_hash,
+        "timestamp": query_params.get("timestamp"),
+        "settings": {
+            "fol_mode": query_params.get("fol_mode"),
+            "use_soft": query_params.get("use_soft", False),
+            "enable_diagnosis": query_params.get("enable_diagnosis", False),
+            "enable_repair": query_params.get("enable_repair", False),
+            "k_samples": query_params.get("k_samples", 1)
+        },
+        "text_length": len(query_params.get("text", "")),
+    }
+
+    # Graph statistics
+    if result.get("result", {}).get("argir"):
+        stats["graph"] = extract_graph_stats(result["result"]["argir"])
+
+    # Diagnosis statistics
+    issues = result.get("issues", [])
+    repairs = result.get("repairs", [])
+    stats["diagnosis"] = extract_diagnosis_stats(issues, repairs)
+
+    # FOL prover status
+    fol_summary = result.get("result", {}).get("fol_summary")
+    stats["fol_status"] = extract_fol_status(fol_summary)
+
+    # Validation issues
+    validation = result.get("validation", {})
+    stats["validation"] = {
+        "errors": len(validation.get("errors", [])),
+        "warnings": len(validation.get("warnings", []))
+    }
+
+    return stats
+
+
 def extract_fol_status(fol_summary: Optional[Dict[str, Any]]) -> str:
     """Extract FOL prover status from summary.
 
@@ -138,12 +185,27 @@ def extract_fol_status(fol_summary: Optional[Dict[str, Any]]) -> str:
 
 
 def analyze_saved_query(query_hash: str, api_key: Optional[str] = None) -> Optional[Dict[str, Any]]:
-    """Analyze a saved query and return statistics."""
+    """Analyze a saved query and return statistics.
+
+    First checks for cached results in saved-results/, otherwise re-runs analysis.
+    """
     file_path = Path("saved") / f"{query_hash}.json"
     if not file_path.exists():
         print(f"Warning: {query_hash}.json not found", file=sys.stderr)
         return None
 
+    # Check for cached results first
+    results_path = Path("saved-results") / f"{query_hash}.json"
+    if results_path.exists():
+        try:
+            with open(results_path) as f:
+                result = json.load(f)
+            # Extract statistics from cached result
+            return extract_stats_from_result(query_hash, result)
+        except Exception as e:
+            print(f"Warning: Failed to load cached results for {query_hash}, re-running: {e}", file=sys.stderr)
+
+    # No cache found, run analysis
     try:
         # Load query parameters
         with open(file_path) as f:
@@ -170,41 +232,8 @@ def analyze_saved_query(query_hash: str, api_key: Optional[str] = None) -> Optio
 
         result = analyze_arguments(req)
 
-        # Extract statistics
-        stats = {
-            "hash": query_hash,
-            "timestamp": query_params.get("timestamp"),
-            "settings": {
-                "fol_mode": query_params.get("fol_mode"),
-                "use_soft": query_params.get("use_soft", False),
-                "enable_diagnosis": query_params.get("enable_diagnosis", False),
-                "enable_repair": query_params.get("enable_repair", False),
-                "k_samples": query_params.get("k_samples", 1)
-            },
-            "text_length": len(query_params.get("text", "")),
-        }
-
-        # Graph statistics
-        if result.get("result", {}).get("argir"):
-            stats["graph"] = extract_graph_stats(result["result"]["argir"])
-
-        # Diagnosis statistics
-        issues = result.get("issues", [])
-        repairs = result.get("repairs", [])
-        stats["diagnosis"] = extract_diagnosis_stats(issues, repairs)
-
-        # FOL prover status
-        fol_summary = result.get("result", {}).get("fol_summary")
-        stats["fol_status"] = extract_fol_status(fol_summary)
-
-        # Validation issues
-        validation = result.get("validation", {})
-        stats["validation"] = {
-            "errors": len(validation.get("errors", [])),
-            "warnings": len(validation.get("warnings", []))
-        }
-
-        return stats
+        # Extract statistics using the helper function
+        return extract_stats_from_result(query_hash, result)
 
     except Exception as e:
         print(f"Error analyzing {query_hash}: {e}", file=sys.stderr)
