@@ -543,6 +543,94 @@ Every repair is verified before being presented to the user:
 
 ---
 
+## Why These Design Choices?
+
+### Why allow "trivial" repairs (conclusion = premise)?
+
+You might wonder: why does ARGIR show repairs that just add the conclusion as a premise? Isn't that circular and useless?
+
+**It's informative, not useful for fixing:**
+
+The circular repair reveals something important about the argument's structure:
+- The text **asserts** the conclusion rather than **deriving** it
+- The author treats it as a starting point, not a theorem
+- The "repair" makes this explicit
+
+**It's formally valid:**
+- Logically: if you assume P, you can prove P
+- E-prover correctly verifies this
+- The repair *does* make the argument formally valid (trivially)
+
+**You can filter it:**
+- All repairs are cost-ranked
+- Trivial repairs have the same cost as non-trivial ones
+- Users can identify them (hypothesis = goal)
+- Future versions could rank them lower
+
+**The alternative is worse:**
+- Silently failing would hide the issue
+- Saying "no repair" when one exists is misleading
+- Better to show all verified options and let users judge
+
+**Most repairs aren't trivial:**
+- 87.9% of FOL repairs pass verification
+- The Schweitzer example is one of the trivial minority
+- Most find genuine missing intermediate steps
+
+**Bottom line:** Showing trivial repairs is honest about what abduction found. They reveal argument structure (assertion vs. proof) even if they don't help improve the argument.
+
+---
+
+### Why use AF semantics?
+
+You might also wonder: why does ARGIR care about AF acceptance at all? Why not just use FOL?
+
+**AF models dialectical structure:**
+
+Natural language arguments aren't just logical proofs - they're **dialectical exchanges**:
+- Claims face objections and counter-arguments
+- Arguments attack and defend each other
+- Acceptance depends on surviving critical scrutiny
+
+AF semantics formalize this: an argument is accepted if it can defend itself against attackers.
+
+**AF handles what FOL can't:**
+
+1. **Defeasible reasoning:** "Birds fly, but penguins don't"
+   - FOL struggles with exceptions
+   - AF handles this naturally (attacks can override)
+
+2. **Competing claims:** Epicurus vs. Stoics on what's good
+   - Both logically valid from their premises
+   - AF determines which "wins" (accepted in extension)
+
+3. **Circular arguments:** C1 → P1 → C1
+   - FOL: invalid (circular)
+   - AF grounded: neither accepted (correctly flagged as problematic)
+
+**The dual approach is key:**
+
+ARGIR uses **both** AF and FOL because they catch different issues:
+- **AF:** Dialectical coherence (attacks, defense, circularity)
+- **FOL:** Logical validity (entailment, consistency)
+- **Together:** Structural + content issues
+
+**AF semantics aren't perfect:**
+
+Limitations to be aware of:
+- **Abstract away content:** AF only looks at attack structure, not what arguments say
+- **Binary attacks:** Doesn't model strength or probability
+- **Grounded can be empty:** In mutual attacks, may need preferred semantics
+- **Don't guarantee truth:** Can accept logically invalid arguments
+
+**But they're necessary:**
+
+For philosophical texts that argue *against* positions, attack dialectical rivals, and handle exceptions, AF semantics provide the right level of abstraction.
+
+**Bottom line:** AF semantics model the dialectical structure of natural language arguments. Combined with FOL for logical validity, they provide complementary checks on both structure and content.
+
+---
+
 ## Summary
 
 ### What Repair Strategies Check
