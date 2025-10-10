@@ -107,26 +107,33 @@ def extract_diagnosis_stats(issues: List[Dict], repairs: List[Dict]) -> Dict[str
 
 
 def extract_fol_status(fol_summary: Optional[Dict[str, Any]]) -> str:
-    """Extract FOL prover status from summary."""
+    """Extract FOL prover status from summary.
+
+    Returns one of: 'theorem', 'unsat', 'sat', 'timeout', 'unknown', 'none'
+    Following the same logic as argir/report/render.py
+    """
     if not fol_summary:
         return "none"
 
-    # Check for common status fields
-    status = fol_summary.get("status", "").lower()
-    if status:
-        if "theorem" in status or "proved" in status:
-            return "proved"
-        elif "countsat" in status or "disproved" in status:
-            return "disproved"
-        elif "timeout" in status:
+    # Check in the same order as the report renderer
+    if fol_summary.get("theorem"):
+        return "theorem"  # Conjecture proved (best case)
+    elif fol_summary.get("unsat"):
+        return "unsat"  # Unsatisfiable (axioms contradict negated goal, i.e., goal proven)
+    elif fol_summary.get("sat"):
+        return "sat"  # Satisfiable (goal not proven, countermodel exists)
+    elif fol_summary.get("note"):
+        note = fol_summary["note"]
+        if "timeout" in note.lower():
             return "timeout"
-        elif "unknown" in status or "gave up" in status:
-            return "unknown"
+        return "unknown"
 
-    # Check for proof field
-    if fol_summary.get("proof"):
-        return "proved"
+    # Check raw output for timeout
+    raw = fol_summary.get("raw", "")
+    if "Timeout" in raw or "timeout" in raw.lower():
+        return "timeout"
 
+    # If neither sat nor unsat, it's unknown
     return "unknown"
 
 
@@ -342,7 +349,15 @@ def format_summary_text(agg: Dict[str, Any]) -> str:
     lines.append("FOL Prover Results:")
     for status, count in sorted(agg['fol_status'].items(), key=lambda x: -x[1]):
         pct = count / agg['total_queries'] * 100
-        lines.append(f"  {status.capitalize()}: {count} ({pct:.1f}%)")
+        status_label = {
+            'theorem': 'Theorem (proved)',
+            'unsat': 'Unsat (proved)',
+            'sat': 'Sat (countermodel)',
+            'unknown': 'Unknown',
+            'timeout': 'Timeout',
+            'none': 'None'
+        }.get(status, status.capitalize())
+        lines.append(f"  {status_label}: {count} ({pct:.1f}%)")
 
     lines.append("")
     lines.append("Text Statistics:")
