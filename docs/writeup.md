@@ -246,26 +246,6 @@ But the structured approach provides:
 
 The tradeoff: **precision vs. richness**.
 
-### What I'd Do Differently
-
-**Less formalization?**
-Maybe the graph doesn't need to be FOL-compilable. Keep it as a visual/conceptual tool, don't force everything into predicate logic.
-
-**Better extraction?**
-- More sophisticated predicate canonicalization
-- Entity extraction and coreference
-- Multi-stage LLM repair (not just one-shot)
-
-**Different formal target?**
-- Defeasible logic instead of classical FOL
-- Probabilistic argumentation
-- Just AF, no FOL at all
-
-**More conservative repairs?**
-- Filter trivial repairs (goal = premise)
-- Require human approval before applying
-- Rank by semantic plausibility, not just cost
-
 ### The Disappointment
 
 I wanted the logic to capture the essence of arguments. It doesn't. Formalizing *reduces* rather than *enhances* understanding for most philosophical texts.
