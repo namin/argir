@@ -8,6 +8,8 @@
 
 A follow-up from [Argument Debugger](https://github.com/namin/argument-debugger), an LLM+ASP system for analyzing and repairing arguments.
 
+ARGIR is a research system and IR that maps argument structure and offers minimal, verified repairs. It integrates AF semantics (clingo) and FOL proving (E‑prover) to (1) diagnose unsupported inferences, circularity, and unresolved contradictions; and (2) repair by (a) abducing missing premises that make conclusions provable and (b) editing AF attacks to restore acceptance—both checked post‑hoc. It comes with a web app, CLI, and documentation.
+
 This README covers setup, CLI usage, LLM configuration, generated outputs, testing, and the core IR contract.
 
 ---
