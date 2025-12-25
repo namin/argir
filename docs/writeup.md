@@ -246,7 +246,7 @@ But the structured approach provides:
 
 The tradeoff: **precision vs. richness**.
 
-### The Disappointment
+### A Negative Result
 
 I wanted the logic to capture the essence of arguments. It doesn't. Formalizing *reduces* rather than *enhances* understanding for most philosophical texts.
 
