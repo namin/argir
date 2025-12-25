@@ -82,7 +82,7 @@ The graph shows:
 
 But E-prover fails: predicate mismatch. R1 requires `ethic_of_love_widened_into_universality` but we have `ethic_be_ethic_of_love_widened_into_universality`. The LLM created syntactically distinct predicates for the same concept.
 
-The abduction system "repairs" this by suggesting: add premise `ethic_be_reverence_for_life`. That's circular! But it's informative: Schweitzer **asserts** the conclusion, he doesn't **derive** it. The text is definitional, not inferential. The graph makes this visible.
+The abduction system responds by suggesting: add premise `ethic_be_reverence_for_life`. That's circular! But it's informative: Schweitzer **asserts** the conclusion, he doesn't **derive** it. The text is definitional, not inferential. The graph makes this visible.
 
 ### What Formal Provability Correlates With (and What It Misses)
 
