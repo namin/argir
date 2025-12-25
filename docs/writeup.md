@@ -271,7 +271,7 @@ It provides a **map**, not a verification:
 - Shows architecture, doesn't prove soundness
 - Useful for understanding, not replacing judgment
 
-## Conclusion: The Map is the Artifact
+## Conclusion: The Map as Artifact
 
 The Argument Debugger set out to verify arguments with logic. It ended up producing maps that reveal structure—sometimes clarifying, sometimes reducing, always making explicit what was implicit.
 
