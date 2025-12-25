@@ -84,7 +84,7 @@ But E-prover fails: predicate mismatch. R1 requires `ethic_of_love_widened_into_
 
 The abduction system "repairs" this by suggesting: add premise `ethic_be_reverence_for_life`. That's circular! But it's informative: Schweitzer **asserts** the conclusion, he doesn't **derive** it. The text is definitional, not inferential. The graph makes this visible.
 
-### What Proved vs. Unproved Arguments Look Like
+### What Formal Provability Correlates With (and What It Misses)
 
 From the 95 queries, I analyzed what distinguishes the 32.6% that E-prover proved:
 
