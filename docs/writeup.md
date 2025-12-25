@@ -283,8 +283,9 @@ The subtlety remains in the semantics—in what "pleasure" means to Epicurus, in
 
 The Argument Debugger makes the structure visible. The rest is still philosophy.
 
----
+## Related Artifacts
 
+- https://github.com/namin/argument-debugger
+- https://github.com/namin/argir
+- https://github.com/namin/argmap
 - **Dataset:** 95 arguments collected at [argir.metareflective.app](https://argir.metareflective.app)
-- **Code:** Available at [github.com/namin/argir](https://github.com/namin/argir)
-- **Technical documentation:** See `/docs` for deep dives on FOL translation, repair strategies, and system architecture
