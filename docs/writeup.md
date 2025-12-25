@@ -10,7 +10,7 @@ After building two prototypes and collecting 95 arguments (mostly classic philos
 
 ## What the System Does
 
-The Argument Debugger (the second prototype, named ARGIR—Argument Graph Intermediate Representation) processes a piece of argumentative text through several stages:
+The Argument Debugger (prototype 2: ARGIR, the Argument Graph Intermediate Representation) processes a piece of argumentative text through several stages:
 
 **1. Soft Extraction (LLM)**
 The system prompts an LLM (Gemini) to extract argument structure in a permissive "Soft IR" format. The LLM identifies:
